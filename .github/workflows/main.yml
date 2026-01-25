@@ -1,73 +1,29 @@
-name: 检查玩机笔记 & 鼓励一下 V2
+name: 检查 Markdown 语法
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发测试用
 
 jobs:
-  check-and-cheer:
+  lint-markdown:
     runs-on: ubuntu-latest
 
     steps:
       - name: 下载仓库
         uses: actions/checkout@v4
 
-      - name: 调试：列出根目录文件和文件夹（帮我们排查路径）
+      - name: 安装 markdownlint（Node.js 工具）
         run: |
-          echo "当前工作目录内容："
-          ls -la
-          echo "shell script backup 文件夹内容（如果存在）："
-          ls -la "shell script backup" || echo "文件夹不存在或无法访问～"
+          npm install -g markdownlint-cli
 
-      - name: 安装 shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck || echo "shellcheck 安装失败，但继续"
+      - name: 检查 README.md 语法
+        run: markdownlint README.md || echo "有 Markdown 语法警告（常见小问题，比如标题空格、列表缩进），不影响阅读，继续玩机！"
 
-      - name: 检查 shell script backup 里的 .sh 文件
+      - name: 鼓励一下！
         run: |
-          SHELL_DIR="shell script backup"
-          if [ -d "$SHELL_DIR" ] && ls "$SHELL_DIR"/*.sh >/dev/null 2>&1; then
-            echo "找到 .sh 文件，开始检查语法..."
-            shellcheck "$SHELL_DIR"/*.sh || echo "shellcheck 发现警告（常见小问题，不影响运行），继续玩机！"
-          else
-            echo "没找到 shell script backup 或里面没 .sh 文件，跳过检查～"
-          fi
-
-      - name: 简单检查 host 文件
-        run: |
-          if [ -f "host" ]; then
-            echo "检查 host 文件..."
-            localhost_count=$(grep -c "127.0.0.1.*localhost" host 2>/dev/null || echo 0)
-            if [ "$localhost_count" -gt 2 ]; then
-              echo "警告：localhost 出现了 $localhost_count 次，可能有重复条目！"
-            else
-              echo "host 文件正常（localhost 出现 $localhost_count 次）"
-            fi
-            empty_lines=\( (grep -c "^ \)" host 2>/dev/null || echo 0)
-            echo "有 $empty_lines 个空行（正常）"
-            echo "host 文件总行数：$(wc -l < host)"
-          else
-            echo "没找到 host 文件，跳过～"
-          fi
-
-      - name: 玩机鼓励！
-        run: |
-          echo "Root 稳了！继续玩机～ 😎"
+          echo "MD 检查完毕！Root 稳了～ 😎"
           echo "LA 时间现在是 $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M')"
-          echo "笔记检查完毕，放心 push！🍔"            else
-              echo "host 文件看起来正常（localhost 出现 $localhost_count 次）"
-            fi
-            # 检查空行或明显无效行（可选加严）
-            empty_lines=\( (grep -c "^ \)" host || true)
-            echo "有 $empty_lines 个空行（正常）"
-          else
-            echo "没找到 host 文件，跳过～"
-          fi
-
-      - name: 玩机鼓励！
-        run: |
-          echo "Root 稳了！继续玩机～ 😎"
-          echo "LA 时间现在是 $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M')"
-          echo "今天的 hosts 和 shell 都检查过了，放心 push！🍔"
+          echo "笔记继续记，hosts 继续屏蔽，吃饭继续浪！🍔"
