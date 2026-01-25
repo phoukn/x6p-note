@@ -40,3 +40,22 @@ alpha面具APP更新与其他面具APP更新不一样？安装更新APP后重启
 
 
 系统生成的景深壁纸在/data/data/com.oplus.wallpapers/files/theme_resource/
+
+
+小布识屏
+adb shell am start-foreground-service -a oplus.intent.action.DIRECT_SIDEBAR_SERVICE -e extra_entrance_function full_screen_ocr -e triggered_app com.coloros.smartsidebar
+
+为过Conventional Tests (4)，已删除/metadata/magisk这个目录
+
+
+
+alpha面具的termux就算授权了su后，还是无法使用su命令，/debug_ramdisk/su -p能进入su环境，使用如下命令可替代正常使用su
+echo "alias su='/debug_ramdisk/su -p'" >> ~/.bashrc
+echo "alias tsu='/debug_ramdisk/su -p'" >> ~/.bashrc
+source ~/.bashrc
+或者到/data/data/com.termux/files/usr/bin/目录下将su的文件for p in /debug_ramdisk/su /sbin/su /system/sbin/su /system/bin/su /system/xbin/su /su/bin/su /magisk/.core/bin/su
+for p in后加上/debug_ramdisk/su以及tsu的SU_BINARY_SEARCH=("/debug_ramdisk/su" "/system/xbin/su" "/system/bin/su")加上/debug_ramdisk/su
+
+
+
+trickystore插件模块如果伪装过安全补丁信息的记得恢复才能系统更新，其他可伪装安全补丁日期的模块也记得卸载，要不然就一直安装失败。
