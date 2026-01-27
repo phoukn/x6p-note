@@ -59,3 +59,12 @@ for p in后加上/debug_ramdisk/su以及tsu的SU_BINARY_SEARCH=("/debug_ramdisk/
 
 
 trickystore插件模块如果伪装过安全补丁信息的记得恢复才能系统更新，其他可伪装安全补丁日期的模块也记得卸载，要不然就一直安装失败。
+
+
+vb校验禁用
+fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img
+
+adb查看当前槽位
+adb shell getprop ro.boot.slot_suffix
+
+fastboot getvar current-slot
