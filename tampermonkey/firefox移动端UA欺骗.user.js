@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         🔗 国内APP跳转修复（轻量版）
-// @namespace    https://github.com/yourname
+// @namespace    https://github.com/phoukn/x6p-note/edit/main/tampermonkey/firefox%E7%A7%BB%E5%8A%A8%E7%AB%AFUA%E6%AC%BA%E9%AA%97.user.js
 // @version      2.0
 // @description  安卓Firefox访问国内主流APP网站时无法跳转？本脚本仅伪装vendor字段，不修改UA字符串，侵入性最低！
-// @author       You
+// @author       Qwen3-MAX
 // @match        *://*.taobao.com/*
 // @match        *://*.tmall.com/*
 // @match        *://*.taobao.com.cn/*
@@ -55,7 +55,8 @@
 // @run-at       document-start
 // @grant        none
 // @icon         https://www.taobao.com/favicon.ico
-// ==/UserScript==
+// @downloadURL  https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/tampermonkey/firefox移动端UA欺骗.user.js
+// @updateURL    https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/tampermonkey/firefox移动端UA欺骗.user.js
 
 (function() {
     'use strict';
