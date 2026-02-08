@@ -57,6 +57,7 @@
 // @icon         https://www.taobao.com/favicon.ico
 // @downloadURL  https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/tampermonkey/firefox移动端UA欺骗.user.js
 // @updateURL    https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/tampermonkey/firefox移动端UA欺骗.user.js
+// ==/UserScript==
 
 (function() {
     'use strict';
