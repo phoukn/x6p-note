@@ -385,17 +385,17 @@ rule-anchor:
 
 # ============ 规则集配置 ============
 rule-providers:
-  直连名单: # 本地自定义直连域名列表
-    <<: *Local
-    path: ./rules/直连名单.list # 需手动创建文件并添加规则
+  直连名单: # 本地自定义直连域名列表  需在github自己创建文件并添加规则,raw链接
+    <<: *Classical
+    url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/%E7%9B%B4%E8%BF%9E%E5%90%8D%E5%8D%95.list"
 
-  代理名单: # 本地自定义代理域名列表
-    <<: *Local
-    path: ./rules/代理名单.list # 需手动创建文件并添加规则
+  代理名单: # 本地自定义代理域名列表  需在github自己创建文件并添加规则,raw链接
+    <<: *Classical
+    url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/%E4%BB%A3%E7%90%86%E5%90%8D%E5%8D%95.list"
 
-  禁止名单: # 本地自定义静止域名列表
-    <<: *Local
-    path: ./rule/禁止名单.list  # 需手动创建文件并添加规则
+  禁止名单: # 本地自定义静止域名列表  需在github自己创建文件并添加规则,raw链接
+    <<: *Classical
+    url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/%E7%A6%81%E6%AD%A2%E5%90%8D%E5%8D%95.list" 
 
   WebRTC_端/域:
     <<: *Classical
