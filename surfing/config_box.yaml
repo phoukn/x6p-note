@@ -19,8 +19,8 @@ experimental:
       - name: "Accept-Language"
         value: "en-US,en;q=0.9"
 external-controller: 0.0.0.0:9090
-external-ui-url: "https://v6.gh-proxy.com/https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-no-fonts.zip"
-external-ui: "dashboard"
+external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/gh-pages.zip"
+external-ui: "./metacubexd"
 secret: ""
 
 # 订阅健康检查
