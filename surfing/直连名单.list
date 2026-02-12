@@ -1,0 +1,28 @@
+# 这里可指定你需自定义放行
+# 为 Classical 类型 Text 格式
+
+# 示例: 仅删除下方注释号即可，注意是删除#
+#DOMAIN-SUFFIX,example.com
+#IP-CIDR,192.168.0.0/16
+#DOMAIN,dl.google.com
+
+DOMAIN,api.installer.xiaomi.com
+
+DOMAIN-SUFFIX,dcg.microsoft.com
+DOMAIN-SUFFIX,devices.microsoft.com
+DOMAIN-SUFFIX,edge.microsoft.com
+DOMAIN-SUFFIX,graph.microsoft.com
+DOMAIN-SUFFIX,login.microsoftonline.com
+DOMAIN-SUFFIX,aka.ms
+DOMAIN-KEYWORD,phone-link
+DOMAIN-KEYWORD,bitwarden
+
+# 原神直连规则
+DOMAIN-SUFFIX,ks-cdn.com
+DOMAIN-SUFFIX,ksyuncdn.com
+DOMAIN-SUFFIX,lovejp.click
+DOMAIN-SUFFIX,xfyun.club
+IP-CIDR,116.196.132.3/32
+IP-CIDR6,2606:4700:3030::ac43:d73f/128
+
+PROCESS-NAME,me.weishuu.kernnelsu
