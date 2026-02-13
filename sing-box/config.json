@@ -11,7 +11,7 @@
       "type": "remote",
       "tag": "顶级机场", //给你的订阅起个名字
       "path": "./proxy_provider/订阅1.json", //下载下来的订阅文件存放在手机哪
-      "url": "https://login.djjc.cfd/api/v1/client/subscribe?token=c5bf4c834523b4d31e0e1f18f23648a6", //订阅链接
+      "url": "", //订阅链接
       "user_agent": "sing-box",
       "download_detour": "🔄 订阅更新",
       "update_interval": "1d", // 自动更新频率
