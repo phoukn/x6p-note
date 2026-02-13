@@ -58,7 +58,7 @@ proxy-providers:
     override:
       additional-prefix: "Main:" #节点前缀名
     path: ./proxy_provider/proxy1.yaml
-    url: "https://login.djjc.cfd/api/v1/client/subscribe?token=c5bf4c834523b4d31e0e1f18f23648a6&flag=meta"
+    url: ""
   
 #  proxy2:
 #    <<: *p
