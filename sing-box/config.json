@@ -533,6 +533,10 @@
         "outbound": "直连"
       },
       {
+        "rule_set": ["custom_block"],
+        "outbound": "Reject"
+      },
+      {
         "action": "sniff"
       },
       {
@@ -919,9 +923,17 @@
       },
       {
         "tag": "custom_direct",
-        "type": "local",
+        "type": "remote",
         "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/direct_list.json",
         "path": "/data/adb/box/sing-box/rule_provider/direct_list.json"
+      },
+      {
+        "tag": "custom_block",
+        "type": "remote",
+        "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/block_list.json",
+        "path": "/data/adb/box/sing-box/rule_provider/block_list.json"
       }
     ],
     "final": "🐠 漏网之鱼",
