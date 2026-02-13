@@ -387,14 +387,17 @@ rule-anchor:
 rule-providers:
   直连名单: # 本地自定义直连域名列表  需在github自己创建文件并添加规则,raw链接
     <<: *Classical
+    path: ./rules/direct.list
     url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/direct.list"
 
   代理名单: # 本地自定义代理域名列表  需在github自己创建文件并添加规则,raw链接
     <<: *Classical
+    path: ./rules/proxy.list
     url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/proxy.list"
 
   禁止名单: # 本地自定义静止域名列表  需在github自己创建文件并添加规则,raw链接
     <<: *Classical
+    path: ./rules/block.list
     url: "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/block.list" 
 
   WebRTC_端/域:
