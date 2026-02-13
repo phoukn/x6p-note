@@ -1,1 +1,18 @@
-
+{
+  "version": 1,
+  "rules": [
+    { "domain_suffix": ["dcg.microsoft.com"] },
+    { "domain_suffix": ["devices.microsoft.com"] },
+    { "domain_suffix": ["edge.microsoft.com"] },
+    { "domain_suffix": ["graph.microsoft.com"] },
+    { "domain_suffix": ["login.microsoftonline.com"] },
+    { "domain_suffix": ["aka.ms"] },
+    { "domain_keyword": ["phone-link"] },
+    { "domain_keyword": ["bitwarden"] },
+    { "domain_suffix": ["ks-cdn.com"]},
+    { "domain_suffix": ["ksyuncdn.com"]},
+    { "domain_suffix": ["lovejp.click"]},
+    { "domain_suffix": ["xfyun.club"]},
+    { "ip_cidr": ["116.196.132.3","2606:4700:3030::ac43:d73f"]}
+  ]
+}
