@@ -25,7 +25,5 @@ DOMAIN-SUFFIX,xfyun.club
 IP-CIDR,116.196.132.3/32
 IP-CIDR6,2606:4700:3030::ac43:d73f/128
 
-PROCESS-NAME,me.weishuu.kernnelsu
-
 DOMAIN-SUFFIX,googleapis.cn
 DOMAIN-SUFFIX,xn--ngstr-lra8j.com
