@@ -1,8 +1,6 @@
 {
   "version": 1,
   "rules": [
-    { "domain_suffix": ["matrix.org","javfc2.xyz","grok.com","x.ai","x.grok"]},
-    {"domain_keyword":["grok"]},
-    {"package_name":["ai.x.grok"]}
+    { "domain_suffix": ["matrix.org","javfc2.xyz"]},
   ]
 }
