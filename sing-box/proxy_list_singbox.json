@@ -2,4 +2,6 @@
   "version": 1,
   "rules": [
     { "domain_suffix": ["matrix.org","javfc2.xyz"]},
-    {"
+    {"domain_keyword":["pikpak"]}
+  ]
+}
