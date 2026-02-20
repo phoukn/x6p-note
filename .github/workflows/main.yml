@@ -15,12 +15,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史，确保能够准确找到增量文件
+          fetch-depth: 0 # 获取完整历史
 
       - name: Get changed files
         id: changed-files
         run: |
-          # 兼容 Push 和 PR 事件的差异文件获取
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} > changed.txt
           else
@@ -30,6 +29,9 @@ jobs:
           cat changed.txt
 
       - name: Install tools
+        # 引入 GitHub 默认的 Token，防止请求最新版本 API 时被限流 (Rate limit)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck jq python3-pip gzip tar
@@ -38,25 +40,33 @@ jobs:
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
           
-          echo "=== 下载 Mihomo ==="
-          MIHOMO_URL="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-linux-amd64-compatible.gz"
+          echo "=== 自动获取并下载最新版 Mihomo ==="
+          MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
+          
+          if [ -z "$MIHOMO_URL" ] || [ "$MIHOMO_URL" == "null" ]; then
+            echo "::error::获取 Mihomo 下载链接失败，请检查 API 状态"
+            exit 1
+          fi
+          
+          echo "下载链接: $MIHOMO_URL"
           curl -L -o mihomo.gz "$MIHOMO_URL"
           gzip -d mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
 
-          echo "=== 下载 Sing-box ==="
-          SING_URL=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
+          echo "=== 自动获取并下载最新版 Sing-box ==="
+          SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
+          
+          echo "下载链接: $SING_URL"
           curl -L -o sing-box.tar.gz "$SING_URL"
           tar -xzf sing-box.tar.gz
           sudo mv sing-box-*/sing-box /usr/local/bin/
 
       - name: Lint changed Markdown files
         run: |
-          IFS=$'\n' # 解决文件名带空格的问题（如 shell script backup 文件夹）
+          IFS=$'\n'
           for f in $(grep -E '\.md$' changed.txt || true); do
             [ -z "$f" ] && continue
-            # markdownlint 仅作警告处理，不中断流程
             markdownlint "$f" || echo "::warning file=$f::MD 格式有警告，但继续执行～"
           done
 
@@ -77,8 +87,6 @@ jobs:
           for f in $(grep -E 'sing-box/.*\.json$' changed.txt || true); do
             [ -z "$f" ] && continue
             echo "检查 Sing-box JSON: $f"
-            
-            # 智能判断：如果是规则集 (包含 "version" 和 "rules")
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               echo "检测为 Sing-box Rule-set 规则集，进行严格编译测试..."
               sing-box rule-set compile "$f" -o test.srs || { echo "::error file=$f::Sing-box 规则集编译失败（存在非法字段或语法错误）"; exit 1; }
@@ -97,16 +105,14 @@ jobs:
           for f in $(grep -E '\.list$' changed.txt || true); do
             [ -z "$f" ] && continue
             echo "检查 Mihomo/Clash .list 规则集: $f"
-            # 使用 awk 严格校验规则格式及规则类型
             awk -F, '
-              /^\s*(#|$)/ {next} # 跳过空行和注释
+              /^\s*(#|$)/ {next}
               {
                 if (NF < 2) {
                   print "::error file=" FILENAME ",line=" NR "::语法缺少逗号: " $0; 
                   exit 1;
                 }
-                gsub(/^[ \t]+|[ \t]+$/, "", $1); # 清除类型前后的空格
-                # 白名单校验
+                gsub(/^[ \t]+|[ \t]+$/, "", $1);
                 if ($1 !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型: [" $1 "] 在行: " $0; 
                   exit 1;
