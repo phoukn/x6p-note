@@ -16,7 +16,7 @@
     { "domain_suffix": ["zmr2l0.attr.appsflyersdk.com"]},
     { "domain_suffix": ["ir-sdk.guardease.com"]},
     { "domain_suffix": ["icosa-service-cn-01.allawntech.com"]},
-    { "process_name": ["com.luckyzyx.luckytool"] },
+    { "package_name": ["com.luckyzyx.luckytool"] },
     { "ip_cidr": ["49.7.228.53"]},
     { "ip_cidr": ["14.29.101.168"]},
     { "ip_cidr": ["14.29.101.160"]},
