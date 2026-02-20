@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "domain_suffix": [
+        ".xboxlive.com",
+        ".126.net",
+        ".adguardteam.github.io",
+        ".adrules.top",
+        ".amobile.music.tc.qq.com",
+        ".anti-ad.net",
+        ".api-jooxtt.sanook.com",
+        ".api.joox.com",
+        ".aqqmusic.tc.qq.com",
+        ".dl.stream.qqmusic.qq.com",
+        ".ff.dorado.sdo.com",
+        ".ff14.sdo.com",
+        ".ffxiv.com",
+        ".finalfantasyxiv.com",
+        ".heartbeat.belkin.com",
+        ".home.arpa",
+        ".isure.stream.qqmusic.qq.com",
+        ".joox.com",
+        ".kuwo.cn",
+        ".lens.l.google.com",
+        ".linksys.com",
+        ".linksyssmartwifi.com",
+        ".local.adguard.org",
+        ".localhost.ptlogin2.qq.com",
+        ".localhost.sec.qq.com",
+        ".mcdn.bilivideo.cn",
+        ".mesu.apple.com",
+        ".mobileoc.music.tc.qq.com",
+        ".music.163.com",
+        ".music.migu.cn",
+        ".music.taihe.com",
+        ".musicapi.taihe.com",
+        ".n.n.srv.nintendo.net",
+        ".na.b.g-tun.com",
+        ".ntp.org.cn",
+        ".proxy.golang.org",
+        ".ps.res.netease.com",
+        ".router.asus.com",
+        ".shark007.net",
+        ".songsearch.kugou.com",
+        ".square-enix.com",
+        ".static.adtidy.org",
+        ".streamoc.music.tc.qq.com",
+        ".swcdn.apple.com",
+        ".swdist.apple.com",
+        ".swdownload.apple.com",
+        ".swquery.apple.com",
+        ".swscan.apple.com",
+        ".time-ios.apple.com",
+        ".time.edu.cn",
+        ".time1.cloud.tencent.com",
+        ".trackercdn.kugou.com",
+        ".xiami.com",
+        ".xnotify.xboxlive.com",
+        ".y.qq.com"
+      ]
+    },
+    {
+      "domain_keyword": [
+        "Mijia Cloud",
+        "github.com",
+        "githubusercontent.com"
+      ]
+    },
+    {
+      "domain_regex": [
+        "^stun\\..*",
+        "^.*\\.stun\\..*",
+        "^ntp\\d?\\..*\\.com$",
+        "^time\\d?\\..*\\.com$",
+        "^time\\..*\\.apple\\.com$",
+        "^time\\..*\\.edu\\.cn$",
+        "^xbox\\..*\\.microsoft\\.com$"
+      ]
+    },
+    {
+      "domain": [
+        "github.com",
+        "ssh.github.com",
+        "api.github.com",
+        "gist.github.com"
+      ]
+    }
+  ]
+}
