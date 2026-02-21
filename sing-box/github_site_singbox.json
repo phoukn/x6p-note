@@ -1,13 +1,14 @@
 {
   "version": 1,
-  "rules": [{
-    "domain_keyword": [
-      "github",
-      "githubapp",
-      "githubusercontent",
-      "githubassets",
-      "githubstatus",
-      "mygithub"
+  "rules": [
+    {
+      "domain_keyword": [
+        "github",
+        "githubapp",
+        "githubusercontent",
+        "githubassets",
+        "githubstatus",
+        "mygithub"
     ]
   },
     {
