@@ -1,0 +1,812 @@
+{
+  "log": {
+    "disabled": false,
+    "level": "info",
+    "output": "/data/adb/box/run/sing-box.log",
+    "timestamp": true
+  },
+  "providers": [
+    {
+      "type": "remote",
+      "tag": "机场",
+      "url": "url",
+      "path": "./proxy_provider/provider1.json",
+      "download_detour": "🔄 订阅更新",
+      "update_interval": "2d"
+    },
+    {
+      "type": "remote",
+      "tag": "机机",
+      "url": "null",
+      "path": "./proxy_provider/provider2.json",
+      "download_detour": "🔄 订阅更新",
+      "update_interval": "2d"
+    }
+  ],
+  "experimental": {
+    "urltest_unified_delay": true,
+    "clash_api": {
+      "external_controller": "0.0.0.0:9090",
+      "secret": "",
+      "external_ui": "dashboard",
+      "external_ui_download_url": "https://v6.gh-proxy.com/https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages-no-fonts.zip",
+      "external_ui_download_detour": "🔄 订阅更新",
+      "default_mode": "rule",
+      "access_control_allow_origin": [
+        "*"
+      ],
+      "access_control_allow_private_network": true
+    },
+    "cache_file": {
+      "enabled": true,
+      "store_fakeip": true,
+      "store_rdrc": true,
+      "cache_id": "my-singbox-config",
+      "path": "/data/adb/box/sing-box/cache.db"
+    }
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "cloudflare",
+        "server": "cloudflare-dns.com",
+        "detour": "🛜 总模式",
+        "domain_resolver": "a"
+      },
+      {
+        "type": "quic",
+        "tag": "ali",
+        "domain_resolver": "a",
+        "server": "dns.alidns.com"
+      },
+      {
+        "type": "udp",
+        "tag": "local",
+        "server": "223.5.5.5"
+      },
+      {
+        "type": "udp",
+        "tag": "a",
+        "server": "223.5.5.5"
+      },
+      {
+        "type": "fakeip",
+        "tag": "FAKEIP-DNS",
+        "inet4_range": "198.18.0.0/15",
+        "inet6_range": "fc00::/18"
+      }
+    ],
+    "rules": [
+      {
+        "domain_keyword": [
+          "ntp",
+          "time",
+          "mtalk.google"
+        ],
+        "rule_set": [
+          "geosite-cn",
+          "geosite-private"
+        ],
+        "server": "ali",
+        "strategy": "prefer_ipv6"
+      },
+      {
+        "rule_set": "no-fakeip",
+        "server": "cloudflare"
+      },
+      {
+        "query_type": [
+          "A",
+          "AAAA"
+        ],
+        "server": "FAKEIP-DNS"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "ali"
+      },
+      {
+        "clash_mode": "Global",
+        "server": "cloudflare"
+      }
+    ],
+    "final": "cloudflare",
+    "reverse_mapping": true,
+    "strategy": "prefer_ipv4",
+    "independent_cache": true
+  },
+  "inbounds": [
+    {
+      "type": "tproxy",
+      "tag": "tproxy-in",
+      "listen": "::",
+      "listen_port": 9898
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "::",
+      "listen_port": 7890
+    },
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "sing",
+      "address": [
+        "172.18.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "mtu": 9000,
+      "stack": "gvisor",
+      "endpoint_independent_nat": true,
+      "auto_route": true,
+      "strict_route": true,
+      "auto_redirect": true,
+      "include_android_user": [
+        0,
+        10,
+        999
+      ],
+      "include_uid": [],
+      "exclude_uid": []
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "🛜 总模式",
+      "outbounds": [
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "👆 手动选择",
+      "use_all_providers": true
+    },
+    {
+      "type": "selector",
+      "tag": "🔄 订阅更新",
+      "outbounds": [
+        "🇨🇳 CN",
+        "🛜 总模式"
+      ]
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 Auto",
+      "use_all_providers": true,
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "selector",
+      "tag": "🚫 广告拦截",
+      "outbounds": [
+        "Reject",
+        "🇨🇳 CN",
+        "🛜 总模式"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📝 自定义代理",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "block",
+      "tag": "Reject",
+    },
+    {
+      "type": "selector",
+      "tag": "🤖 AI",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇺🇸 US",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📮 GoogleFCM",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📱 Google",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "💻 Microsoft",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📹 YouTube",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "👨‍💻 Github",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📲 Telegram",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "🎵 TikTok",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "📸 Instagram",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "🐦 Twitter",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "👆 手动选择",
+        "🔁 Auto",
+        "🇭🇰 HK",
+        "🇹🇼 TW",
+        "🇯🇵 JP",
+        "🇸🇬 SG",
+        "🇺🇸 US"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "🐠 漏网之鱼",
+      "use_all_providers": true,
+      "outbounds": [
+        "🛜 总模式",
+        "🇨🇳 CN"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "🇨🇳 CN",
+      "outbounds": [
+        "直连"
+      ],
+      "use_all_providers": true,
+      "include": "(?i)(cn|China|Chinese|🇨🇳|中国|中|北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|新疆|西藏|宁夏|内蒙古|广西)"
+    },
+    {
+      "type": "direct",
+      "tag": "直连",
+      "routing_mark": 255,
+      "domain_strategy": "prefer_ipv6"
+    },
+    {
+      "type": "urltest",
+      "tag": "🇭🇰 HK",
+      "use_all_providers": true,
+      "include": "(?i)(🇭🇰|香港|(^|[^A-Za-z])hk([^A-Za-z]|$)|hkt|hongkong|hong kong|Hong Kong)",
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🇹🇼 TW",
+      "use_all_providers": true,
+      "include": "(?i)(🇹🇼|台|(^|[^A-Za-z])tw([^A-Za-z]|$)|kbro|苗栗|taiwan|Taiwan|taipei|台北)",
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🇯🇵 JP",
+      "use_all_providers": true,
+      "include": "(?i)(🇯🇵|日|(^|[^A-Za-z])jp([^A-Za-z]|$)|japan|Japan|东京)",
+      "exclude": "(?i)(尼日利亚)",
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🇸🇬 SG",
+      "use_all_providers": true,
+      "include": "(?i)(🇸🇬|新|(^|[^A-Za-z])sg([^A-Za-z]|$)|singapore|Singapore)",
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🇺🇸 US",
+      "use_all_providers": true,
+      "include": "(?i)(🇺🇸|美|(^|[^A-Za-z])us([^A-Za-z]|$)|unitedstates|united states|United States)",
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    }
+  ],
+  "route": {
+    "default_domain_resolver": {
+      "server": "ali"
+    },
+    "auto_detect_interface": true,
+    "final": "🐠 漏网之鱼",
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "protocol": "dns"
+          },
+          {
+            "port": 53
+          }
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "protocol": "stun",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "awavenue",
+        "outbound": "🚫 广告拦截"
+      },
+      {
+        "rule_set": "custom_block",
+        "outbound": "Reject"
+      },
+      {
+        "rule_set": "custom_proxy",
+        "outbound": "📝 自定义代理"
+      },
+      {
+        "rule_set": "custom_direct",
+        "outbound": "直连"
+      },
+      {
+        "rule_set": "geosite-private",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geosite-cn",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "network": "icmp",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geosite-microsoft@cn",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geosite-category-ai-!cn",
+        "outbound": "🤖 AI"
+      },
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "domain_keyword": "mtalk.google"
+          },
+          {
+            "port": 5228
+          }
+        ],
+        "outbound": "📮 GoogleFCM"
+      },
+      {
+        "rule_set": "geosite-youtube",
+        "outbound": "📹 YouTube"
+      },
+      {
+        "domain_suffix": [
+            "github.com"
+        ],
+        "port": 443,
+        "outbound": "👨‍💻 Github"
+      },
+      {
+        "rule_set": "geosite-github",
+        "outbound": "👨‍💻 Github"
+      },
+      {
+        "rule_set": "geosite-microsoft",
+        "outbound": "💻 Microsoft"
+      },
+      {
+        "rule_set": "geosite-telegram",
+        "outbound": "📲 Telegram"
+      },
+      {
+        "rule_set": "geosite-tiktok",
+        "outbound": "🎵 TikTok"
+      },
+      {
+        "rule_set": "geosite-twitter",
+        "outbound": "🐦 Twitter"
+      },
+      {
+        "rule_set": "geosite-instagram",
+        "outbound": "📸 Instagram"
+      },
+      {
+        "rule_set": "geosite-google",
+        "outbound": "📱 Google"
+      },
+      {
+        "action": "resolve",
+        "match_only": true
+      },
+      {
+        "rule_set": "geoip-cn",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geoip-private",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geoip-telegram",
+        "outbound": "📲 Telegram"
+      },
+      {
+        "rule_set": "geoip-twitter",
+        "outbound": "🐦 Twitter"
+      },
+      {
+        "rule_set": "geoip-google",
+        "outbound": "📱 Google"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "clash_mode": "Global",
+        "outbound": "🛜 总模式"
+      },
+      {
+        "domain_suffix": [
+          "browserleaks.com",
+          "naixi.com"
+        ],
+        "outbound": "🐠 漏网之鱼"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geosite-telegram",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-telegram.srs",
+        "path": "./rule_provider/geosite-telegram.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-instagram",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-instagram.srs",
+        "path": "./rule_provider/geosite-instagram.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-twitter",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-twitter.srs",
+        "path": "./rule_provider/geosite-twitter.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-tiktok",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-tiktok.srs",
+        "path": "./rule_provider/geosite-tiktok.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-microsoft@cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-microsoft@cn.srs",
+        "path": "./rule_provider/geosite-microsoft@cn.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-microsoft",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-microsoft.srs",
+        "path": "./rule_provider/geosite-microsoft.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-google",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-google.srs",
+        "path": "./rule_provider/geosite-google.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-youtube",
+        "type": "remote",
+        "format": "binary",
+        "path": "./rule_provider/geosite-youtube.srs",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-youtube.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-cn.srs",
+        "path": "./rule_provider/geosite-cn.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-category-ai-!cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-category-ai-!cn.srs",
+        "path": "./rule_provider/geosite-category-ai-!cn.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geosite/geosite-private.srs",
+        "path": "./rule_provider/geosite-private.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-cn.srs",
+        "path": "./rule_provider/geoip-cn.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-google",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-google.srs",
+        "path": "./rule_provider/geoip-google.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-private",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-private.srs",
+        "path": "./rule_provider/geoip-private.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-telegram",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-telegram.srs",
+        "path": "./rule_provider/geoip-telegram.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geoip-twitter",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-twitter.srs",
+        "path": "./rule_provider/geoip-twitter.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "awavenue",
+        "type": "remote",
+        "format": "source",
+        "path": "./rule_provider/awavenue.json",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "geosite-github",
+        "type": "remote",
+        "format": "source",
+        "path": "./rule_provider/github_site.json",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/github_site_singbox.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "custom_direct",
+        "type": "remote",
+        "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/direct_list_singbox.json",
+        "path": "/data/adb/box/sing-box/rule_provider/direct_list.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "custom_block",
+        "type": "remote",
+        "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/block_list_singbox.json",
+        "path": "/data/adb/box/sing-box/rule_provider/block_list.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "custom_proxy",
+        "type": "remote",
+        "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/proxy_list_singbox.json",
+        "path": "/data/adb/box/sing-box/rule_provider/proxy_list.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
+        "tag": "no-fakeip",
+        "type": "remote",
+        "format": "source",
+        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/no-fakeip_singbox.json",
+        "path": "/data/adb/box/sing-box/rule_provider/no_fakeip.json",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      }
+    ],
+    "final": "🐠 漏网之鱼",
+    "auto_detect_interface": true,
+    "find_process": true
+  }
+}
