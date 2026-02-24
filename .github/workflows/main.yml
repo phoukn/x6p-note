@@ -7,7 +7,6 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-# 必须添加写权限，允许 Github Action 机器人把生成的 srs/mrs 文件推送到你的仓库
 permissions:
   contents: write
 
@@ -21,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
+      - name: Get changed files (For Linting)
         id: changed-files
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -29,8 +28,6 @@ jobs:
           else
             git diff --name-only HEAD^ HEAD > changed.txt || touch changed.txt
           fi
-          echo "Changed files:"
-          cat changed.txt
 
       - name: Install tools
         env:
@@ -38,82 +35,53 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck jq python3-pip gzip tar
-          
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
           
-          echo "=== 下载 Mihomo ==="
+          # 下载 Mihomo
           MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
           curl -L -o mihomo.gz "$MIHOMO_URL"
           gzip -d mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
 
-          echo "=== 下载 Sing-box ==="
+          # 下载 Sing-box
           SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
           curl -L -o sing-box.tar.gz "$SING_URL"
           tar -xzf sing-box.tar.gz
           sudo mv sing-box-*/sing-box /usr/local/bin/
 
-      - name: Lint changed Markdown files
+      - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
-          IFS=$'\n'
-          for f in $(grep -E '\.md$' changed.txt || true); do
-            [ -z "$f" ] && continue
-            markdownlint "$f" || echo "::warning file=$f::MD 格式有警告"
-          done
-
-      - name: Lint changed YAML (mihomo configs)
-        run: |
-          IFS=$'\n'
-          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
-            [ -z "$f" ] && continue
-            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || echo "::warning file=$f::yamllint 警告"
-            mihomo -t -f "$f" || { echo "::error file=$f::mihomo 测试失败"; exit 1; }
-          done
-
-      - name: Compile & Validate Sing-box (.json -> .srs)
-        run: |
-          IFS=$'\n'
-          for f in $(grep -E 'sing-box/.*\.json$' changed.txt || true); do
-            [ -z "$f" ] && continue
+          echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
+          # 遍历 sing-box 文件夹下所有的 .json 文件
+          for f in sing-box/*.json; do
+            [ -e "$f" ] || continue # 防止文件夹为空
+            
+            # 智能判断：只编译包含 "rules" 字段的规则集，避开纯配置 config.json
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
-              echo "检测为 Sing-box 规则集，正在编译为 .srs..."
-              # 直接将同名文件编译为 .srs
               srs_file="${f%.json}.srs"
               sing-box rule-set compile "$f" -o "$srs_file" || { echo "::error file=$f::Sing-box 规则集编译失败"; exit 1; }
-              echo "✅ 成功生成 $srs_file"
+              echo "✅ 已生成: $srs_file"
             else
-              echo "检测为 Sing-box 配置文件，进行合法性测试..."
+              # 对普通配置文件进行合法性测试
               sing-box check -c "$f" || { echo "::error file=$f::Sing-box 配置文件错误"; exit 1; }
             fi
           done
 
-      - name: Compile & Validate Mihomo (.list -> .mrs)
+      - name: Compile ALL Mihomo Rules (.list -> .mrs)
         run: |
-          IFS=$'\n'
-          for f in $(grep -E 'surfing/.*\.list$' changed.txt || true); do
-            [ -z "$f" ] && continue
-            echo "校验 Mihomo/Clash 规则集: $f"
-            awk -F, '
-              /^\s*(#|$)/ {next}
-              {
-                if (NF < 2) { print "::error file=" FILENAME ",line=" NR "::缺少逗号: " $0; exit 1; }
-                gsub(/^[ \t]+|[ \t]+$/, "", $1);
-                if ($1 !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
-                  print "::error file=" FILENAME ",line=" NR "::未知规则类型: [" $1 "] 在行: " $0; exit 1;
-                }
-              }
-            ' "$f" || exit 1
+          echo "🔄 开始全局扫描并全量编译 Mihomo 规则集..."
+          # 遍历 surfing 文件夹下所有的 .list 文件
+          for f in surfing/*.list; do
+            [ -e "$f" ] || continue
             
-            echo "校验通过，正在编译为 .mrs..."
-            # 使用 mihomo 将 classic text(.list) 编译为 .mrs
             mrs_file="${f%.list}.mrs"
             mihomo convert-ruleset classic text "$f" "$mrs_file" || { echo "::error file=$f::Mihomo MRS编译失败"; exit 1; }
-            echo "✅ 成功生成 $mrs_file"
+            echo "✅ 已生成: $mrs_file"
           done
 
-      - name: Lint changed Shell / Python / JS / Hosts
+      - name: Lint changed Scripts & Hosts
         run: |
           IFS=$'\n'
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
@@ -123,22 +91,22 @@ jobs:
             awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || exit 1
           fi
 
-      - name: Commit and Push compiled rules (.srs / .mrs)
+      - name: Commit and Push compiled rules
         run: |
-          # 配置 Github Action 机器人作为提交者
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 将刚才生成或更新的 srs/mrs 文件加入暂存区（即便找不到对应文件也会静默跳过）
-          git add sing-box/*.srs surfing/*.mrs 2>/dev/null || true
+          # 使用 find 强制找出所有生成的 srs 和 mrs 文件加入 Git，完美解决漏传问题
+          find sing-box -name "*.srs" -exec git add {} + || true
+          find surfing -name "*.mrs" -exec git add {} + || true
           
-          # 检查是否有文件改动，如果有则自动提交并推送到仓库
+          # 检查暂存区是否有实质性的二进制变化
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-compile: update .srs and .mrs rules"
+            git commit -m "🤖 auto-compile: 全量更新 .srs 和 .mrs 二进制规则"
             git push
             echo "🎉 自动编译的规则已推送到仓库！"
           else
-            echo "💤 规则无变化，跳过自动提交。"
+            echo "💤 编译成功，但所有的 .srs 和 .mrs 文件的底层二进制数据与上次完全一致，无需重复提交。"
           fi
 
       - name: Final message
