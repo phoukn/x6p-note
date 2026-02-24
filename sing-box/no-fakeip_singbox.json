@@ -62,8 +62,9 @@
     },
     {
       "domain_keyword": [
-        "Mijia Cloud",
-        "github.com"
+        "github.com",
+        "ntp",
+        "stun"
       ]
     },
     {
@@ -74,6 +75,11 @@
         "^time\\d?\\..*\\.com$",
         "^time\\..*\\.apple\\.com$",
         "^time\\..*\\.edu\\.cn$",
+        "^localhost\\.[^.]+\\.weixin\\.qq\\.com$",
+        "^Mijia\\sCloud$",
+        "^xbox\\.[^.]+\\.[^.]+\\.microsoft\\.com$",
+        "^[^.]+$",
+        "^[^.]+\\.[^.]+\\.xboxlive\\.com$",
         "^xbox\\..*\\.microsoft\\.com$"
       ]
     },
