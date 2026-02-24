@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+  # 新增：定时触发器。每天北京时间早上 6 点 (UTC 22:00) 自动运行一次
+  schedule:
+    - cron: '0 22 * * *'
 
 permissions:
   contents: write
@@ -51,6 +54,15 @@ jobs:
           tar -xzf sing-box.tar.gz
           sudo mv sing-box-*/sing-box /usr/local/bin/
 
+      # ================= 新增：自动进货步骤 =================
+      - name: Fetch upstream rules (AWAvenue-Ads)
+        run: |
+          echo "🔄 正在从上游抓取 AWAvenue 去广告规则..."
+          # 直接下载到 sing-box 文件夹下，名字叫 AWAvenue-Ads-Rule-Singbox.json
+          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json"
+          echo "✅ 上游规则下载完成！"
+      # =====================================================
+
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
           echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
@@ -59,18 +71,16 @@ jobs:
             
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               srs_file="${f%.json}.srs"
-              # 编译规则，如果报错则抛出红色提示并跳过，不中断流程
               if sing-box rule-set compile "$f" -o "$srs_file"; then
                 echo "✅ 已生成: $srs_file"
               else
                 echo "::error file=$f::Sing-box 规则集编译失败，已跳过！"
               fi
             else
-              # 校验配置，如果报错同样只提示、不中断
               if sing-box check -c "$f"; then
                 echo "✅ 配置文件合法: $f"
               else
-                echo "::error file=$f::Sing-box 配置文件格式有误（请查看详情），已跳过！"
+                echo "::error file=$f::Sing-box 配置文件格式有误，已跳过！"
               fi
             fi
           done
@@ -94,35 +104,34 @@ jobs:
           IFS=$'\n'
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
           for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          
-          # JS 校验改为容错模式
           for f in $(grep -E '\.js$' changed.txt || true); do 
             if [ -n "$f" ]; then
               node --check "$f" || echo "::error file=$f::JS 存在语法错误，已跳过！"
             fi
           done
-          
-          # Hosts 校验改为容错模式
           if grep -q '^hosts/host$' changed.txt; then
             awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || echo "hosts校验抛出警告，但继续执行"
           fi
 
       - name: Commit and Push compiled rules
-        # 确保只要到了这一步，即使前面有红字警告，也会执行提交
         if: always()
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # 把下载的上游 json 也加进仓库里，方便你查看他更新了啥
+          git add sing-box/AWAvenue-Ads-Rule-Singbox.json || true
+          
+          # 收集所有生成的二进制文件
           find sing-box -name "*.srs" -exec git add {} + || true
           find surfing -name "*.mrs" -exec git add {} + || true
           
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-compile: 更新部分可用的二进制规则 (跳过错误文件)"
+            git commit -m "🤖 auto-update: 同步上游规则并全量编译 .srs / .mrs"
             git push
             echo "🎉 自动编译的规则已推送到仓库！"
           else
-            echo "💤 二进制数据无变化或全部编译失败，跳过自动提交。"
+            echo "💤 上游规则和本地二进制数据均无变化，跳过自动提交。"
           fi
 
       - name: Final message
