@@ -82,7 +82,7 @@ jobs:
             [ -e "$f" ] || continue
             
             mrs_file="${f%.list}.mrs"
-            if mihomo convert-ruleset classic text "$f" "$mrs_file"; then
+            if mihomo convert-ruleset classical text "$f" "$mrs_file"; then
               echo "✅ 已生成: $mrs_file"
             else
               echo "::error file=$f::Mihomo MRS编译失败，已跳过！"
