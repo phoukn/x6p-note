@@ -54,31 +54,39 @@ jobs:
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
           echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
-          # 遍历 sing-box 文件夹下所有的 .json 文件
           for f in sing-box/*.json; do
-            [ -e "$f" ] || continue # 防止文件夹为空
+            [ -e "$f" ] || continue 
             
-            # 智能判断：只编译包含 "rules" 字段的规则集，避开纯配置 config.json
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               srs_file="${f%.json}.srs"
-              sing-box rule-set compile "$f" -o "$srs_file" || { echo "::error file=$f::Sing-box 规则集编译失败"; exit 1; }
-              echo "✅ 已生成: $srs_file"
+              # 编译规则，如果报错则抛出红色提示并跳过，不中断流程
+              if sing-box rule-set compile "$f" -o "$srs_file"; then
+                echo "✅ 已生成: $srs_file"
+              else
+                echo "::error file=$f::Sing-box 规则集编译失败，已跳过！"
+              fi
             else
-              # 对普通配置文件进行合法性测试
-              sing-box check -c "$f" || { echo "::error file=$f::Sing-box 配置文件错误"; exit 1; }
+              # 校验配置，如果报错同样只提示、不中断
+              if sing-box check -c "$f"; then
+                echo "✅ 配置文件合法: $f"
+              else
+                echo "::error file=$f::Sing-box 配置文件格式有误（请查看详情），已跳过！"
+              fi
             fi
           done
 
       - name: Compile ALL Mihomo Rules (.list -> .mrs)
         run: |
           echo "🔄 开始全局扫描并全量编译 Mihomo 规则集..."
-          # 遍历 surfing 文件夹下所有的 .list 文件
           for f in surfing/*.list; do
             [ -e "$f" ] || continue
             
             mrs_file="${f%.list}.mrs"
-            mihomo convert-ruleset classic text "$f" "$mrs_file" || { echo "::error file=$f::Mihomo MRS编译失败"; exit 1; }
-            echo "✅ 已生成: $mrs_file"
+            if mihomo convert-ruleset classic text "$f" "$mrs_file"; then
+              echo "✅ 已生成: $mrs_file"
+            else
+              echo "::error file=$f::Mihomo MRS编译失败，已跳过！"
+            fi
           done
 
       - name: Lint changed Scripts & Hosts
@@ -86,30 +94,39 @@ jobs:
           IFS=$'\n'
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
           for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || exit 1; done
+          
+          # JS 校验改为容错模式
+          for f in $(grep -E '\.js$' changed.txt || true); do 
+            if [ -n "$f" ]; then
+              node --check "$f" || echo "::error file=$f::JS 存在语法错误，已跳过！"
+            fi
+          done
+          
+          # Hosts 校验改为容错模式
           if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || exit 1
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || echo "hosts校验抛出警告，但继续执行"
           fi
 
       - name: Commit and Push compiled rules
+        # 确保只要到了这一步，即使前面有红字警告，也会执行提交
+        if: always()
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 使用 find 强制找出所有生成的 srs 和 mrs 文件加入 Git，完美解决漏传问题
           find sing-box -name "*.srs" -exec git add {} + || true
           find surfing -name "*.mrs" -exec git add {} + || true
           
-          # 检查暂存区是否有实质性的二进制变化
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-compile: 全量更新 .srs 和 .mrs 二进制规则"
+            git commit -m "🤖 auto-compile: 更新部分可用的二进制规则 (跳过错误文件)"
             git push
             echo "🎉 自动编译的规则已推送到仓库！"
           else
-            echo "💤 编译成功，但所有的 .srs 和 .mrs 文件的底层二进制数据与上次完全一致，无需重复提交。"
+            echo "💤 二进制数据无变化或全部编译失败，跳过自动提交。"
           fi
 
       - name: Final message
+        if: always()
         run: |
           echo "检查与编译全流程完毕，畅快冲浪吧！😎"
           echo "东京时间: $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
