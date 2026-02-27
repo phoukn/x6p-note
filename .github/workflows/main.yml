@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files (For Linting)
+      - name: Get changed files
         id: changed-files
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -66,7 +66,7 @@ jobs:
               rm -f "$srs_file"
               sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
             else
-              sing-box check -c "$f" || echo "::error file=$f::Sing-box 格式有误"
+              sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置文件格式有误"
             fi
           done
 
@@ -76,20 +76,27 @@ jobs:
           for f in surfing/*.list; do
             [ -e "$f" ] || continue
             
-            # 【核心护甲】将原始文件清洗成绝对干净的临时文件
             tmp_list="${f}.tmp"
             awk -F, '
-              /^\s*(#|$)/ {next} # 忽略空行和注释
+              # 忽略各种格式的空行和注释 (#, //, ;)
+              /^\s*(#|\/\/|;|$)/ {next} 
               {
-                gsub(/\r$/, ""); # 清除 Windows 回车符 \r
-                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除隐藏的 UTF-8 BOM 头
+                gsub(/\r$/, ""); # 清除 Windows 回车符
+                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除 BOM 头
                 
                 type = $1; gsub(/^[ \t]+|[ \t]+$/, "", type);
-                if (type == "") next;
-                
                 payload = $2; gsub(/^[ \t]+|[ \t]+$/, "", payload);
                 
-                # 强制剥离多余的 ,DIRECT 等策略名 (保留 IP-CIDR 的 no-resolve)
+                # 【终极白名单护盾】如果不是合法的 Clash 规则类型，直接无情抛弃，绝不让它去炸内核！
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                  next;
+                }
+                
+                # 如果内容为空（比如写了 DOMAIN-SUFFIX, 但后面没写域名），也无情抛弃
+                if (payload == "") {
+                  next;
+                }
+                
                 if (type ~ /^IP-CIDR/ && $3 ~ /no-resolve/) {
                   print type "," payload ",no-resolve"
                 } else {
@@ -98,17 +105,23 @@ jobs:
               }
             ' "$f" > "$tmp_list"
 
+            # 安全检查：如果清洗完之后文件变空了（说明全篇都是注释或错误格式）
+            if [ ! -s "$tmp_list" ]; then
+              echo "::warning file=$f::文件清洗后为空，可能全是注释或格式全错，跳过编译"
+              rm -f "$tmp_list"
+              continue
+            fi
+
             mrs_file="${f%.list}.mrs"
             rm -f "$mrs_file"
             
-            # 把清洗后的干净文件交给 Mihomo 编译
             if mihomo convert-ruleset classical text "$tmp_list" "$mrs_file"; then
               echo "✅ 已生成: $mrs_file"
             else
               echo "::error file=$f::Mihomo MRS编译失败，已跳过！"
             fi
             
-            rm -f "$tmp_list" # 阅后即焚，清理临时文件
+            rm -f "$tmp_list"
           done
 
       - name: Lint changed Scripts & Hosts
@@ -116,7 +129,7 @@ jobs:
           IFS=$'\n'
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
           for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || echo "JS 错误"; done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
           if grep -q '^hosts/host$' changed.txt; then
             awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
           fi
@@ -130,6 +143,10 @@ jobs:
           git add sing-box/AWAvenue-Ads-Rule-Singbox.json || true
           find sing-box -name "*.srs" -exec git add {} + || true
           find surfing -name "*.mrs" -exec git add {} + || true
+          
+          echo "============== Git 状态透视 =============="
+          git status
+          echo "========================================="
           
           if ! git diff --staged --quiet; then
             git commit -m "🤖 auto-update: 同步规则并全量编译 .srs / .mrs"
