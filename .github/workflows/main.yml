@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-  # 每天北京时间早上 6 点 (UTC 22:00) 自动运行，强制全量编译并更新上游规则
   schedule:
     - cron: '0 22 * * *'
 
@@ -41,14 +40,12 @@ jobs:
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
           
-          # 下载 Mihomo
           MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
           curl -L -o mihomo.gz "$MIHOMO_URL"
           gzip -d mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
 
-          # 下载 Sing-box
           SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
           curl -L -o sing-box.tar.gz "$SING_URL"
           tar -xzf sing-box.tar.gz
@@ -57,45 +54,61 @@ jobs:
       - name: Fetch upstream rules (AWAvenue-Ads)
         run: |
           echo "🔄 正在从上游抓取 AWAvenue 去广告规则..."
-          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json"
-          echo "✅ 上游规则下载完成！"
+          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
           echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
           for f in sing-box/*.json; do
             [ -e "$f" ] || continue 
-            
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               srs_file="${f%.json}.srs"
-              rm -f "$srs_file" # 【绝杀】先强制删除旧的二进制文件
-              if sing-box rule-set compile "$f" -o "$srs_file"; then
-                echo "✅ 已生成: $srs_file"
-              else
-                echo "::error file=$f::Sing-box 规则集编译失败，已跳过！"
-              fi
+              rm -f "$srs_file"
+              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
             else
-              if sing-box check -c "$f"; then
-                echo "✅ 配置文件合法: $f"
-              else
-                echo "::error file=$f::Sing-box 配置文件格式有误，已跳过！"
-              fi
+              sing-box check -c "$f" || echo "::error file=$f::Sing-box 格式有误"
             fi
           done
 
       - name: Compile ALL Mihomo Rules (.list -> .mrs)
         run: |
-          echo "🔄 开始全局扫描并全量编译 Mihomo 规则集..."
+          echo "🔄 开始清洗并全量编译 Mihomo 规则集..."
           for f in surfing/*.list; do
             [ -e "$f" ] || continue
             
+            # 【核心护甲】将原始文件清洗成绝对干净的临时文件
+            tmp_list="${f}.tmp"
+            awk -F, '
+              /^\s*(#|$)/ {next} # 忽略空行和注释
+              {
+                gsub(/\r$/, ""); # 清除 Windows 回车符 \r
+                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除隐藏的 UTF-8 BOM 头
+                
+                type = $1; gsub(/^[ \t]+|[ \t]+$/, "", type);
+                if (type == "") next;
+                
+                payload = $2; gsub(/^[ \t]+|[ \t]+$/, "", payload);
+                
+                # 强制剥离多余的 ,DIRECT 等策略名 (保留 IP-CIDR 的 no-resolve)
+                if (type ~ /^IP-CIDR/ && $3 ~ /no-resolve/) {
+                  print type "," payload ",no-resolve"
+                } else {
+                  print type "," payload
+                }
+              }
+            ' "$f" > "$tmp_list"
+
             mrs_file="${f%.list}.mrs"
-            rm -f "$mrs_file" # 【绝杀】先强制删除旧的二进制文件
-            if mihomo convert-ruleset classical text "$f" "$mrs_file"; then
+            rm -f "$mrs_file"
+            
+            # 把清洗后的干净文件交给 Mihomo 编译
+            if mihomo convert-ruleset classical text "$tmp_list" "$mrs_file"; then
               echo "✅ 已生成: $mrs_file"
             else
               echo "::error file=$f::Mihomo MRS编译失败，已跳过！"
             fi
+            
+            rm -f "$tmp_list" # 阅后即焚，清理临时文件
           done
 
       - name: Lint changed Scripts & Hosts
@@ -103,13 +116,9 @@ jobs:
           IFS=$'\n'
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
           for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do 
-            if [ -n "$f" ]; then
-              node --check "$f" || echo "::error file=$f::JS 存在语法错误，已跳过！"
-            fi
-          done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || echo "JS 错误"; done
           if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || echo "hosts校验抛出警告，但继续执行"
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
           fi
 
       - name: Commit and Push compiled rules
@@ -122,20 +131,10 @@ jobs:
           find sing-box -name "*.srs" -exec git add {} + || true
           find surfing -name "*.mrs" -exec git add {} + || true
           
-          echo "============== Git 状态透视 =============="
-          git status
-          echo "========================================="
-          
           if ! git diff --staged --quiet; then
             git commit -m "🤖 auto-update: 同步规则并全量编译 .srs / .mrs"
             git push
             echo "🎉 自动编译的规则已推送到仓库！"
           else
-            echo "💤 源码无实质性修改，生成的二进制数据与上次完全一致，跳过提交。"
+            echo "💤 二进制数据无实质性变化，跳过提交。"
           fi
-
-      - name: Final message
-        if: always()
-        run: |
-          echo "检查与编译全流程完毕，畅快冲浪吧！😎"
-          echo "东京时间: $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
