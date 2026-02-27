@@ -1,11 +1,4 @@
-# 进程名屏蔽示例（如果想直接挡某个 app 的所有联网，需内核支持 PROCESS-NAME）
-# PROCESS-NAME,com.example.antifraudapp
-
 PROCESS-NAME,com.luckyzyx.luckytool
-# 后续添加示例（你可以直接复制下面这几行改成你需要的）
-# IP-CIDR,你的新IP/32
-# DOMAIN-SUFFIX,新域名.com
-# DOMAIN-KEYWORD,新关键词
 
 #屏蔽偷文件
 IP-CIDR,120.76.141.58/32
