@@ -9,7 +9,6 @@ DOMAIN-SUFFIX,aka.ms
 DOMAIN-KEYWORD,phone-link
 DOMAIN-KEYWORD,bitwarden
 
-# 原神直连规则
 DOMAIN-SUFFIX,ks-cdn.com
 DOMAIN-SUFFIX,ksyuncdn.com
 DOMAIN-SUFFIX,lovejp.click
