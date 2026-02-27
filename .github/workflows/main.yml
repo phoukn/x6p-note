@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 22 * * *' # 每天北京时间早 6 点自动拉取去广告规则并编译
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
+      - name: Get changed files (For Linting)
         id: changed-files
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -40,12 +40,14 @@ jobs:
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
           
+          echo "=== 下载 Mihomo (仅用于测试 yaml 配置文件) ==="
           MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
           curl -L -o mihomo.gz "$MIHOMO_URL"
           gzip -d mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
 
+          echo "=== 下载 Sing-box (用于规则编译) ==="
           SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
           curl -L -o sing-box.tar.gz "$SING_URL"
           tar -xzf sing-box.tar.gz
@@ -56,6 +58,57 @@ jobs:
           echo "🔄 正在从上游抓取 AWAvenue 去广告规则..."
           curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
+      - name: Lint changed Markdown, YAML, Scripts & Hosts
+        run: |
+          IFS=$'\n'
+          # 1. 检查 Markdown
+          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          
+          # 2. 检查 Shell, Python, JS
+          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          
+          # 3. 检查 Hosts
+          if grep -q '^hosts/host$' changed.txt; then
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
+          fi
+          
+          # 4. 检查 Mihomo 配置 (yaml)
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
+            [ -z "$f" ] && continue
+            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || echo "::warning file=$f::yamllint 警告"
+            mihomo -t -f "$f" || echo "::error file=$f::Mihomo 配置文件语法错误"
+          done
+
+      - name: Validate Mihomo Rules (.list syntax check)
+        run: |
+          echo "🔄 正在严格校验 Mihomo (.list) 规则语法..."
+          # 强制设置 UTF-8 环境，彻底避免中文注释引起的乱码报错
+          export LC_ALL=C.UTF-8
+          
+          for f in surfing/*.list; do
+            [ -e "$f" ] || continue
+            awk -F, '
+              # 忽略空行、注释（支持 #, //, ;）
+              /^\s*(#|\/\/|;|$)/ {next} 
+              {
+                type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
+                
+                # 校验：缺少逗号
+                if (NF < 2) {
+                  print "::warning file=" FILENAME ",line=" NR "::格式警告: 缺少逗号 -> " $0
+                  next
+                }
+                
+                # 校验：未知的规则类型 (允许 RULE-SET，因为这是仅做文本校验，不编译)
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                  print "::error file=" FILENAME ",line=" NR "::严重错误: 未知的规则类型 [" type "]"
+                }
+              }
+            ' "$f"
+          done
+
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
           echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
@@ -64,95 +117,36 @@ jobs:
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               srs_file="${f%.json}.srs"
               rm -f "$srs_file"
-              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
+              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 规则集编译失败"
             else
               sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置文件格式有误"
             fi
           done
 
-      - name: Compile ALL Mihomo Rules (.list -> .mrs)
-        run: |
-          echo "🔄 开始清洗并全量编译 Mihomo 规则集..."
-          for f in surfing/*.list; do
-            [ -e "$f" ] || continue
-            
-            tmp_list="${f}.tmp"
-            awk -F, '
-              # 忽略空行和注释
-              /^\s*(#|\/\/|;|$)/ {next} 
-              {
-                gsub(/\r$/, ""); # 清除 Windows 回车
-                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除 BOM
-                
-                type = $1; gsub(/^[ \t]+|[ \t]+$/, "", type);
-                type = toupper(type); # 强制转大写，防止大小写问题
-                
-                payload = $2; gsub(/^[ \t]+|[ \t]+$/, "", payload);
-                
-                # 【终极修复】绝对不包含 RULE-SET！只允许以下合法的 Provider 规则类型
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN)$/) {
-                  next;
-                }
-                
-                if (payload == "") {
-                  next;
-                }
-                
-                # 保留 IP-CIDR 的 no-resolve 属性，剥离其它多余的 DIRECT 等策略名
-                if (type ~ /^IP-CIDR/ && $3 ~ /no-resolve/i) {
-                  print type "," payload ",no-resolve"
-                } else {
-                  print type "," payload
-                }
-              }
-            ' "$f" > "$tmp_list"
-
-            if [ ! -s "$tmp_list" ]; then
-              echo "::warning file=$f::文件清洗后为空，已跳过编译 (可能是文件里全都是非法的 RULE-SET 引用或注释)"
-              rm -f "$tmp_list"
-              continue
-            fi
-
-            mrs_file="${f%.list}.mrs"
-            rm -f "$mrs_file"
-            
-            if mihomo convert-ruleset classical text "$tmp_list" "$mrs_file"; then
-              echo "✅ 已生成: $mrs_file"
-            else
-              echo "::error file=$f::Mihomo MRS编译失败"
-            fi
-            
-            rm -f "$tmp_list"
-          done
-
-      - name: Lint changed Scripts & Hosts
-        run: |
-          IFS=$'\n'
-          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
-          if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
-          fi
-
-      - name: Commit and Push compiled rules
+      - name: Commit and Push
         if: always()
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # 把下载的去广告源码和生成的二进制加入暂存区
           git add sing-box/AWAvenue-Ads-Rule-Singbox.json || true
           find sing-box -name "*.srs" -exec git add {} + || true
-          find surfing -name "*.mrs" -exec git add {} + || true
           
           echo "============== Git 状态透视 =============="
           git status
           echo "========================================="
           
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: 同步规则并全量编译 .srs / .mrs"
+            git commit -m "🤖 auto-update: 同步去广告规则并编译 Sing-box .srs"
             git push
             echo "🎉 自动编译的规则已推送到仓库！"
           else
             echo "💤 二进制数据无实质性变化，跳过提交。"
           fi
+
+      - name: Final message
+        if: always()
+        run: |
+          echo "所有检查、过滤与编译流程已圆满结束，畅快玩机吧！😎"
+          echo "东京时间: $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
