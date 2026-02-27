@@ -78,26 +78,28 @@ jobs:
             
             tmp_list="${f}.tmp"
             awk -F, '
-              # 忽略各种格式的空行和注释 (#, //, ;)
+              # 忽略空行和注释
               /^\s*(#|\/\/|;|$)/ {next} 
               {
-                gsub(/\r$/, ""); # 清除 Windows 回车符
-                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除 BOM 头
+                gsub(/\r$/, ""); # 清除 Windows 回车
+                if (NR==1) sub(/^\xef\xbb\xbf/, ""); # 清除 BOM
                 
                 type = $1; gsub(/^[ \t]+|[ \t]+$/, "", type);
+                type = toupper(type); # 强制转大写，防止大小写问题
+                
                 payload = $2; gsub(/^[ \t]+|[ \t]+$/, "", payload);
                 
-                # 【终极白名单护盾】如果不是合法的 Clash 规则类型，直接无情抛弃，绝不让它去炸内核！
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                # 【终极修复】绝对不包含 RULE-SET！只允许以下合法的 Provider 规则类型
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN)$/) {
                   next;
                 }
                 
-                # 如果内容为空（比如写了 DOMAIN-SUFFIX, 但后面没写域名），也无情抛弃
                 if (payload == "") {
                   next;
                 }
                 
-                if (type ~ /^IP-CIDR/ && $3 ~ /no-resolve/) {
+                # 保留 IP-CIDR 的 no-resolve 属性，剥离其它多余的 DIRECT 等策略名
+                if (type ~ /^IP-CIDR/ && $3 ~ /no-resolve/i) {
                   print type "," payload ",no-resolve"
                 } else {
                   print type "," payload
@@ -105,9 +107,8 @@ jobs:
               }
             ' "$f" > "$tmp_list"
 
-            # 安全检查：如果清洗完之后文件变空了（说明全篇都是注释或错误格式）
             if [ ! -s "$tmp_list" ]; then
-              echo "::warning file=$f::文件清洗后为空，可能全是注释或格式全错，跳过编译"
+              echo "::warning file=$f::文件清洗后为空，已跳过编译 (可能是文件里全都是非法的 RULE-SET 引用或注释)"
               rm -f "$tmp_list"
               continue
             fi
@@ -118,7 +119,7 @@ jobs:
             if mihomo convert-ruleset classical text "$tmp_list" "$mrs_file"; then
               echo "✅ 已生成: $mrs_file"
             else
-              echo "::error file=$f::Mihomo MRS编译失败，已跳过！"
+              echo "::error file=$f::Mihomo MRS编译失败"
             fi
             
             rm -f "$tmp_list"
