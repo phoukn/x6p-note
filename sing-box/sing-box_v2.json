@@ -1,23 +1,23 @@
 {
   "log": {
     "disabled": false,
-    "level": "info",
+    "level": "panic",
     "output": "/data/adb/box/run/sing-box.log",
     "timestamp": true
   },
   "providers": [
     {
       "type": "remote",
-      "tag": "机场",
-      "url": "url",
+      "tag": "main",
+      "url": "",
       "path": "./proxy_provider/provider1.json",
       "download_detour": "🔄 订阅更新",
       "update_interval": "2d"
     },
     {
       "type": "remote",
-      "tag": "机机",
-      "url": "null",
+      "tag": "backup",
+      "url": "",
       "path": "./proxy_provider/provider2.json",
       "download_detour": "🔄 订阅更新",
       "update_interval": "2d"
@@ -55,20 +55,16 @@
         "domain_resolver": "a"
       },
       {
-        "type": "quic",
-        "tag": "ali",
-        "domain_resolver": "a",
-        "server": "dns.alidns.com"
-      },
-      {
-        "type": "udp",
-        "tag": "local",
-        "server": "223.5.5.5"
+        "type": "https",
+        "tag": "tencent",
+        "server": "doh.pub",
+        "detour": "直连",
+        "domain_resolver": "a"
       },
       {
         "type": "udp",
         "tag": "a",
-        "server": "223.5.5.5"
+        "server": "119.29.29.29"
       },
       {
         "type": "fakeip",
@@ -88,7 +84,7 @@
           "geosite-cn",
           "geosite-private"
         ],
-        "server": "ali",
+        "server": "tencent",
         "strategy": "prefer_ipv6"
       },
       {
@@ -104,7 +100,7 @@
       },
       {
         "clash_mode": "Direct",
-        "server": "ali"
+        "server": "tencent"
       },
       {
         "clash_mode": "Global",
@@ -139,10 +135,12 @@
       ],
       "mtu": 9000,
       "stack": "gvisor",
-      "endpoint_independent_nat": true,
       "auto_route": true,
       "strict_route": true,
       "auto_redirect": true,
+      "endpoint_independent_nat": true,
+      "sniff": true,
+      "sniff_override_destination": true,
       "include_android_user": [
         0,
         10,
@@ -181,14 +179,6 @@
       ]
     },
     {
-      "type": "urltest",
-      "tag": "🔁 Auto",
-      "use_all_providers": true,
-      "url": "https://cp.cloudflare.com",
-      "interval": "3m",
-      "tolerance": 150
-    },
-    {
       "type": "selector",
       "tag": "🚫 广告拦截",
       "outbounds": [
@@ -215,7 +205,7 @@
     },
     {
       "type": "block",
-      "tag": "Reject",
+      "tag": "Reject"
     },
     {
       "type": "selector",
@@ -397,7 +387,10 @@
       "type": "direct",
       "tag": "直连",
       "routing_mark": 255,
-      "domain_strategy": "prefer_ipv6"
+      "domain_resolver": {
+        "server": "tencent",
+        "strategy": "prefer_ipv6"
+      }
     },
     {
       "type": "urltest",
@@ -444,11 +437,45 @@
       "url": "https://cp.cloudflare.com",
       "interval": "3m",
       "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 main",
+      "use_all_providers": false,
+      "providers": [
+        "main"
+      ],
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "type": "urltest",
+      "tag": "🔁 backup",
+      "use_all_providers": false,
+      "providers": [
+        "backup"
+      ],
+      "url": "https://cp.cloudflare.com",
+      "interval": "3m",
+      "tolerance": 150
+    },
+    {
+      "tag": "🔁 Auto",
+      "type": "urltest",
+      "outbounds": [
+        "🔁 main",
+        "🔁 backup"
+      ],
+      "fallback": {
+        "enabled": true,
+        "max_delay": "350ms"
+      }
     }
   ],
   "route": {
     "default_domain_resolver": {
-      "server": "ali"
+      "server": "tencent"
     },
     "auto_detect_interface": true,
     "final": "🐠 漏网之鱼",
@@ -471,6 +498,15 @@
       },
       {
         "protocol": "stun",
+        "outbound": "🇨🇳 CN"
+      },
+      {
+        "port": [
+          5353,
+          5355,
+          3478,
+          5349
+        ],
         "outbound": "🇨🇳 CN"
       },
       {
@@ -527,13 +563,6 @@
         "outbound": "📹 YouTube"
       },
       {
-        "domain_suffix": [
-            "github.com"
-        ],
-        "port": 443,
-        "outbound": "👨‍💻 Github"
-      },
-      {
         "rule_set": "geosite-github",
         "outbound": "👨‍💻 Github"
       },
@@ -576,6 +605,10 @@
       {
         "ip_is_private": true,
         "outbound": "🇨🇳 CN"
+      },
+      {
+        "rule_set": "geoip-ai",
+        "outbound": "🤖 AI"
       },
       {
         "rule_set": "geoip-telegram",
@@ -715,6 +748,15 @@
         "update_interval": "24h"
       },
       {
+        "tag": "geoip-ai",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/lyc8503/sing-box-rules/rule-set-geoip/geoip-ai.srs",
+        "path": "./rule_provider/geoip-ai.srs",
+        "download_detour": "🔄 订阅更新",
+        "update_interval": "24h"
+      },
+      {
         "tag": "geoip-google",
         "type": "remote",
         "format": "binary",
@@ -753,54 +795,54 @@
       {
         "tag": "awavenue",
         "type": "remote",
-        "format": "source",
-        "path": "./rule_provider/awavenue.json",
-        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json",
+        "format": "binary",
+        "path": "./rule_provider/awavenue.srs",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/AWAvenue-Ads-Rule-Singbox.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       },
       {
         "tag": "geosite-github",
         "type": "remote",
-        "format": "source",
-        "path": "./rule_provider/github_site.json",
-        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/github_site_singbox.json",
+        "format": "binary",
+        "path": "./rule_provider/github_site.srs",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/github_site_singbox.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       },
       {
         "tag": "custom_direct",
         "type": "remote",
-        "format": "source",
-        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/direct_list_singbox.json",
-        "path": "/data/adb/box/sing-box/rule_provider/direct_list.json",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/direct_list_singbox.srs",
+        "path": "./rule_provider/direct_list.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       },
       {
         "tag": "custom_block",
         "type": "remote",
-        "format": "source",
-        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/block_list_singbox.json",
-        "path": "/data/adb/box/sing-box/rule_provider/block_list.json",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/block_list_singbox.srs",
+        "path": "./rule_provider/block_list.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       },
       {
         "tag": "custom_proxy",
         "type": "remote",
-        "format": "source",
-        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/proxy_list_singbox.json",
-        "path": "/data/adb/box/sing-box/rule_provider/proxy_list.json",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/proxy_list_singbox.srs",
+        "path": "./rule_provider/proxy_list.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       },
       {
         "tag": "no-fakeip",
         "type": "remote",
-        "format": "source",
-        "url": "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/no-fakeip_singbox.json",
-        "path": "/data/adb/box/sing-box/rule_provider/no_fakeip.json",
+        "format": "binary",
+        "url": "https://v6.gh-proxy.com/https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/sing-box/no-fakeip_singbox.srs",
+        "path": "./rule_provider/no_fakeip.srs",
         "download_detour": "🔄 订阅更新",
         "update_interval": "24h"
       }
