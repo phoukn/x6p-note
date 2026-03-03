@@ -65,7 +65,11 @@
       "domain_keyword": [
         "github.com",
         "ntp",
-        "stun"
+        "stun",
+        "livekit",
+        "turn.",
+        "turns.",
+        "lkrtc"
       ]
     },
     {
