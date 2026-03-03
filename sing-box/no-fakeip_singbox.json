@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "rules": [
     {
       "domain_suffix": [
@@ -63,7 +62,6 @@
     },
     {
       "domain_keyword": [
-        "github.com",
         "ntp",
         "stun",
         "livekit",
