@@ -1,5 +1,8 @@
 DOMAIN,api.installer.xiaomi.com
 
+PROCESS-NAME,com.farlightgames.igame.gp
+PROCESS-NAME,com.microsoft.office.outlook
+
 DOMAIN-SUFFIX,dcg.microsoft.com
 DOMAIN-SUFFIX,devices.microsoft.com
 DOMAIN-SUFFIX,edge.microsoft.com
