@@ -17,7 +17,7 @@
     { "domain_suffix": ["googleapis.cn","xn--ngstr-lra8j.com"]},
     { "domain_suffix": ["immersivetranslate.com"]},
     { "domain_suffix": ["imap.yanded.com","smtp.yandex.com"]},
-    { "package_name": ["com.farlightgames.igame.gp"] },
+    { "package_name": ["com.farlightgames.igame.gp","com.microsoft.office.outlook"] },
     { "domain_suffix": [
         ".cn",
         ".com.cn",
