@@ -2,6 +2,7 @@
   "version": 3,
   "rules": [
     { "domain_suffix": ["matrix.org","javfc2.xyz","linux.do"]},
-    { "domain_keyword":["pikpak"]}
+    { "domain_keyword":["pikpak"]},
+    { "domain": ["bot.lsposed.org","lsposed.org"]}
   ]
 }
