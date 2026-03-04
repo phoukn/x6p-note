@@ -1,4 +1,5 @@
 {
+  "version": 1,
   "rules": [
     { "domain_suffix": ["gjfzpt.cn"]},
     { "domain_suffix": ["fzapp.gjfzpt.cn"]},
