@@ -64,6 +64,7 @@
       "domain_keyword": [
         "ntp",
         "stun",
+        "stun1",
         "livekit",
         "turn.",
         "turns.",
@@ -72,8 +73,8 @@
     },
     {
       "domain_regex": [
-        "^stun\\..*",
-        "^.*\\.stun\\..*",
+        "^stun[0-9]*\\..*",
+        "^.*\\.stun[0-9]*\\..*",
         "^ntp\\d?\\..*\\.com$",
         "^time\\d?\\..*\\.com$",
         "^time\\..*\\.apple\\.com$",
@@ -91,8 +92,4 @@
         "github.com",
         "ssh.github.com",
         "api.github.com",
-        "gist.github.com"
-      ]
-    }
-  ]
-}
+        "gist.git
