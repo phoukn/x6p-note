@@ -17,6 +17,22 @@
     { "domain_suffix": ["ir-sdk.guardease.com"]},
     { "domain_suffix": ["icosa-service-cn-01.allawntech.com"]},
     { "package_name": ["com.luckyzyx.luckytool","com.baidu.input_oppo"] },
+	{ "domain_suffix":[
+        "mime.baidu.com",
+        "mime.n.shifen.com",
+        "imeres.baidu.com",
+        "mobads.baidu.com",
+        "mobads.e.shifen.com",
+        "pcs.baidu.com",
+        "himg.bdimg.com",
+        "imeres.baidu.com",
+        "mbd.baidu.com",
+        "wshifen.com",
+        "ime.baidu.com",
+        "shurufa.baidu.com",
+        "srf.baidu.com"
+      ]
+    },
     { "ip_cidr": ["49.7.228.53"]},
     { "ip_cidr": ["14.29.101.168"]},
     { "ip_cidr": ["14.29.101.160"]},
