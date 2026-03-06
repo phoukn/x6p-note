@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *' # 每天北京时间早 6 点自动拉取去广告规则并编译
+    - cron: '0 22 * * *' # 每天北京时间早 6 点自动运行
 
 permissions:
   contents: write
@@ -40,87 +40,132 @@ jobs:
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
           
-          echo "=== 下载 Mihomo (仅用于测试 yaml 配置文件) ==="
+          echo "=== 下载 Mihomo ==="
           MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
           curl -L -o mihomo.gz "$MIHOMO_URL"
           gzip -d mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
 
-          echo "=== 下载 Sing-box (用于规则编译) ==="
+          echo "=== 下载 Sing-box ==="
           SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
           curl -L -o sing-box.tar.gz "$SING_URL"
           tar -xzf sing-box.tar.gz
           sudo mv sing-box-*/sing-box /usr/local/bin/
 
-      - name: Fetch upstream rules (AWAvenue-Ads)
+      - name: Fetch upstream (AWAvenue-Ads)
         run: |
-          echo "🔄 正在从上游抓取 AWAvenue 去广告规则..."
+          echo "🔄 抓取 AWAvenue 去广告规则..."
           curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
-      - name: Lint changed Markdown, YAML, Scripts & Hosts
+      - name: Fetch & Convert 10007 Hosts (Python 自动化)
         run: |
-          IFS=$'\n'
-          # 1. 检查 Markdown
-          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          python3 -c '
+          import urllib.request, json, re
+          url = "https://raw.githubusercontent.com/lingeringsound/10007/main/all"
+          print("📥 正在下载 10007 Hosts...")
+          try:
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              content = urllib.request.urlopen(req).read().decode("utf-8")
+          except Exception as e:
+              print(f"下载失败: {e}")
+              exit(1)
+              
+          domains = set()
+          for line in content.splitlines():
+              line = line.strip()
+              if not line or line.startswith("#"): continue
+              parts = line.split()
+              if len(parts) >= 2 and parts[0] == "0.0.0.0":
+                  domain = parts[1].lower()
+                  if domain not in ("localhost", "localhost.localdomain", "broadcasthost"):
+                      if re.match(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$", domain):
+                          domains.add(domain)
+          domains = sorted(list(domains))
+          print(f"✅ 提取了 {len(domains)} 个有效去广告域名")
           
-          # 2. 检查 Shell, Python, JS
-          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
-          
-          # 3. 检查 Hosts
-          if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
-          fi
-          
-          # 4. 检查 Mihomo 配置 (yaml)
-          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
-            [ -z "$f" ] && continue
-            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || echo "::warning file=$f::yamllint 警告"
-            mihomo -t -f "$f" || echo "::error file=$f::Mihomo 配置文件语法错误"
-          done
+          # 1. 生成 Sing-box JSON -> 放到 sing-box 文件夹
+          with open("sing-box/adblock_10007.json", "w", encoding="utf-8") as f:
+              json.dump({"version": 1, "rules": [{"domain_suffix": domains}]}, f, separators=(",", ":"))
+              
+          # 2. 生成 Mihomo YAML -> 放到 surfing 文件夹
+          with open("surfing/adblock_10007.yaml", "w", encoding="utf-8") as f:
+              f.write("payload:\n" + "\n".join([f"  - DOMAIN-SUFFIX,{d}" for d in domains]) + "\n")
+              
+          # 3. 生成纯净域名列表 (专用于编译高性能 Mihomo .mrs)
+          with open("surfing/adblock_10007_domains.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(domains) + "\n")
+          '
 
-      - name: Validate Mihomo Rules (.list syntax check)
+      - name: Compile 10007 Hosts to Mihomo .mrs
         run: |
-          echo "🔄 正在严格校验 Mihomo (.list) 规则语法..."
-          # 强制设置 UTF-8 环境，彻底避免中文注释引起的乱码报错
-          export LC_ALL=C.UTF-8
-          
-          for f in surfing/*.list; do
-            [ -e "$f" ] || continue
-            awk -F, '
-              # 忽略空行、注释（支持 #, //, ;）
-              /^\s*(#|\/\/|;|$)/ {next} 
-              {
-                type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
-                
-                # 校验：缺少逗号
-                if (NF < 2) {
-                  print "::warning file=" FILENAME ",line=" NR "::格式警告: 缺少逗号 -> " $0
-                  next
-                }
-                
-                # 校验：未知的规则类型 (允许 RULE-SET，因为这是仅做文本校验，不编译)
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
-                  print "::error file=" FILENAME ",line=" NR "::严重错误: 未知的规则类型 [" type "]"
-                }
-              }
-            ' "$f"
-          done
+          # 利用 Mihomo 官方支持的 domain 模式，安全、极速地将纯域名列表编译为二进制
+          if [ -f "surfing/adblock_10007_domains.txt" ]; then
+            echo "🔄 编译 10007 Hosts 为 Mihomo .mrs ..."
+            rm -f surfing/adblock_10007.mrs
+            mihomo convert-ruleset domain text surfing/adblock_10007_domains.txt surfing/adblock_10007.mrs || echo "::error::10007 Hosts MRS编译失败"
+            rm -f surfing/adblock_10007_domains.txt # 用完即焚，保持仓库干净
+            echo "✅ 成功生成: surfing/adblock_10007.mrs"
+          fi
 
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
-          echo "🔄 开始全局扫描并全量编译 Sing-box 规则集..."
+          echo "🔄 扫描并编译 Sing-box 规则集 (包含刚才下载的 10007 和 AWAvenue)..."
           for f in sing-box/*.json; do
             [ -e "$f" ] || continue 
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
               srs_file="${f%.json}.srs"
               rm -f "$srs_file"
-              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 规则集编译失败"
+              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
             else
-              sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置文件格式有误"
+              sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置格式有误"
             fi
+          done
+
+      - name: Format & Validate Mihomo Rules (.list syntax check)
+        run: |
+          echo "🔄 修复并校验 Mihomo 规则 (.list)..."
+          export LC_ALL=C.UTF-8
+          
+          for f in surfing/*.list; do
+            [ -e "$f" ] || continue
+            
+            # 【采纳 AI 建议】使用 sed 自动修复 Windows 换行符和 BOM 头
+            sed -i 's/\r$//' "$f"
+            sed -i '1s/^\xEF\xBB\xBF//' "$f"
+            
+            # 严格语法校验 (不修改原文件内容)
+            awk -F, '
+              /^\s*(#|\/\/|;|$)/ {next} 
+              {
+                type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
+                if (NF < 2) {
+                  print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
+                  next
+                }
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                  print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
+                }
+              }
+            ' "$f"
+          done
+
+      - name: Lint changed Markdown, YAML, Scripts & Hosts
+        run: |
+          IFS=$'\n'
+          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          
+          if grep -q '^hosts/host$' changed.txt; then
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
+          fi
+          
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
+            [ -z "$f" ] && continue
+            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
+            mihomo -t -f "$f" || echo "::error file=$f::Mihomo yaml语法错误"
           done
 
       - name: Commit and Push
@@ -129,24 +174,18 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 把下载的去广告源码和生成的二进制加入暂存区
+          # 将所有新生成的文件加入暂存区
           git add sing-box/AWAvenue-Ads-Rule-Singbox.json || true
+          git add sing-box/adblock_10007.json surfing/adblock_10007.yaml surfing/adblock_10007.mrs || true
           find sing-box -name "*.srs" -exec git add {} + || true
           
-          echo "============== Git 状态透视 =============="
-          git status
-          echo "========================================="
+          # 顺便提交被 sed 自动修复过换行符的 .list 文件
+          git add surfing/*.list || true
           
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: 同步去广告规则并编译 Sing-box .srs"
+            git commit -m "🤖 auto-update: 同步进货、修复格式并编译全量二进制"
             git push
-            echo "🎉 自动编译的规则已推送到仓库！"
+            echo "🎉 自动编译的规则与去广告订阅已推送！"
           else
-            echo "💤 二进制数据无实质性变化，跳过提交。"
+            echo "💤 源码无变化，二进制数据与昨日一致，跳过提交。"
           fi
-
-      - name: Final message
-        if: always()
-        run: |
-          echo "所有检查、过滤与编译流程已圆满结束，畅快玩机吧！😎"
-          echo "东京时间: $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
