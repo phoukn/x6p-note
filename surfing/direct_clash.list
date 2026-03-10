@@ -29,6 +29,11 @@ DOMAIN-SUFFIX,xn--ngstr-lra8j.com
 
 DOMAIN-SUFFIX,immersivetranslate.com
 
+DOMAIN-SUFFIX,imap.yandex.com
+DOMAIN-SUFFIX,smtp.yandex.com
+DOMAIN-SUFFIX,smtp.yandex.ru
+DOMAIN-SUFFIX,imap.yandex.ru
+
 # WebRTC STUN/TURN 域名规则
 DOMAIN,stun.l.google.com
 DOMAIN,stun1.l.google.com
