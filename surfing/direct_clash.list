@@ -109,16 +109,6 @@ DOMAIN,browserleaks.com
 DOMAIN,ipleak.net
 DOMAIN,ip.voidptr.sh
 
-# WebRTC 关键通信端口 (UDP)
-DST-PORT,3478
-DST-PORT,5349
-DST-PORT,19302
-DST-PORT,5350
-DST-PORT,10000-60000
-
-
-DOMAIN-SUFFIX,imap.yandex.com
-DOMAIN-SUFFIX,smtp.yandex.com
 
 DOMAIN-SUFFIX,.cn
 DOMAIN-SUFFIX,.com.cn
