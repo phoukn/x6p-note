@@ -1,4 +1,5 @@
 PROCESS-NAME,com.luckyzyx.luckytool
+PROCESS-NAME,com.baidu.input_oppo
 
 #屏蔽偷文件
 IP-CIDR,120.76.141.58/32
@@ -18,6 +19,20 @@ DOMAIN-SUFFIX,pingma.qq.com
 DOMAIN-SUFFIX,zmr2l0.attr.appsflyersdk.com
 DOMAIN-SUFFIX,ir-sdk.guardease.com
 DOMAIN-SUFFIX,icosa-service-cn-01.allawntech.com 
+
+DOMAIN-SUFFIX,mime.baidu.com
+DOMAIN-SUFFIX,mime.n.shifen.com
+DOMAIN-SUFFIX,imeres.baidu.com
+DOMAIN-SUFFIX,mobads.baidu.com
+DOMAIN-SUFFIX,mobads.e.shifen.com
+DOMAIN-SUFFIX,pcs.baidu.com
+DOMAIN-SUFFIX,himg.bdimg.com
+DOMAIN-SUFFIX,imeres.baidu.com
+DOMAIN-SUFFIX,mbd.baidu.com
+DOMAIN-SUFFIX,wshifen.com
+DOMAIN-SUFFIX,ime.baidu.com
+DOMAIN-SUFFIX,shurufa.baidu.com
+DOMAIN-SUFFIX,srf.baidu.com
 
 IP-CIDR,49.7.228.53/32
 IP-CIDR,14.29.101.168/32
