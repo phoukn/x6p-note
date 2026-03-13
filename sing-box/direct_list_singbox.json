@@ -131,12 +131,8 @@
     },
     {
       "domain_suffix": [
-        ".cn",
-        ".com.cn",
-        ".net.cn",
-        ".org.cn",
         ".gov.cn",
-        ".edu.c"
+        ".edu.cn"
       ]
     }
   ]
