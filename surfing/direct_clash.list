@@ -110,8 +110,5 @@ DOMAIN,ipleak.net
 DOMAIN,ip.voidptr.sh
 
 
-DOMAIN-SUFFIX,.cn
-DOMAIN-SUFFIX,.com.cn
-DOMAIN-SUFFIX,.org.cn
 DOMAIN-SUFFIX,.gov.cn
 DOMAIN-SUFFIX,.edu.cn
