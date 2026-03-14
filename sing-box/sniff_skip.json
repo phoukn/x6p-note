@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "rules": [
+    {
+      "domain_suffix": [
+        "weixin.qq.com",
+        "wechat.com",
+        "wx.qq.com",
+        "servicewechat.com",
+        "weixinbridge.com",
+        "weixin.com",
+        "qpic.cn",
+        "qq.com",
+        "res.wx.qq.com",
+        "dns.weixin.qq.com.cn",
+        "dns.weixin.qq.com",
+        "short.weixin.qq.com",
+        "szextshort.weixin.qq.com",
+        "szshort.weixin.qq.com",
+        "push.weixin.qq.c
