@@ -2933,7 +2933,6 @@ payload:
   - DOMAIN-SUFFIX,ads.poconorecord.com
   - DOMAIN-SUFFIX,ads.pof.com
   - DOMAIN-SUFFIX,ads.pointroll.com
-  - DOMAIN-SUFFIX,ads.policy-management-security.cfd
   - DOMAIN-SUFFIX,ads.popfolkstars.com
   - DOMAIN-SUFFIX,ads.pornharlot.net
   - DOMAIN-SUFFIX,ads.postandparcel.info
@@ -8779,7 +8778,6 @@ payload:
   - DOMAIN-SUFFIX,eduardogomes.adv.br
   - DOMAIN-SUFFIX,eduardorodrigues.adv.br
   - DOMAIN-SUFFIX,education.leads360.com
-  - DOMAIN-SUFFIX,educationadvicegn.com
   - DOMAIN-SUFFIX,eedclicks.ero-advertising.com
   - DOMAIN-SUFFIX,eeghadse.com
   - DOMAIN-SUFFIX,efcad85fded269f462c434c4c5f84654a17d4a77.cws.conviva.com
@@ -8975,7 +8973,6 @@ payload:
   - DOMAIN-SUFFIX,fasts-downloads.com
   - DOMAIN-SUFFIX,fata.ero-advertising.com
   - DOMAIN-SUFFIX,fav.simba.taobao.com
-  - DOMAIN-SUFFIX,fbaddadsbook.com
   - DOMAIN-SUFFIX,fbofferads.com
   - DOMAIN-SUFFIX,fc.adswt.com
   - DOMAIN-SUFFIX,fcanr.tracking.miui.com
@@ -9124,6 +9121,7 @@ payload:
   - DOMAIN-SUFFIX,fr.rtb-rubicon-1.ads-userverlua-aws-va-106.gbc.criteo.com
   - DOMAIN-SUFFIX,fra1-ib.adnxs-simple.com
   - DOMAIN-SUFFIX,francecadstre.fr
+  - DOMAIN-SUFFIX,frank-advantage-131766.framer.app
   - DOMAIN-SUFFIX,freakads.com
   - DOMAIN-SUFFIX,free-ebookdownloads.com
   - DOMAIN-SUFFIX,free247downloads.com
@@ -10750,7 +10748,6 @@ payload:
   - DOMAIN-SUFFIX,mathads.com
   - DOMAIN-SUFFIX,mathilde-ads.com
   - DOMAIN-SUFFIX,maticooads.com
-  - DOMAIN-SUFFIX,matildesadvocacia.com
   - DOMAIN-SUFFIX,matwbp.iask.sina.com.cn
   - DOMAIN-SUFFIX,maven.ad4game.com
   - DOMAIN-SUFFIX,max-adserv.com
@@ -12056,6 +12053,7 @@ payload:
   - DOMAIN-SUFFIX,pl.relevance.enzymeadvisinggroup.com
   - DOMAIN-SUFFIX,pl.update-myinformations.info
   - DOMAIN-SUFFIX,pl.update-tracks.com
+  - DOMAIN-SUFFIX,pla.advanced-blutickfanpages.sbs
   - DOMAIN-SUFFIX,planeadvancing.com
   - DOMAIN-SUFFIX,planning-analytics.ibmcloud.com
   - DOMAIN-SUFFIX,platform-api.sharethis.com
@@ -12326,7 +12324,6 @@ payload:
   - DOMAIN-SUFFIX,qsptv.net
   - DOMAIN-SUFFIX,qsskp.legalinjuryadvocates.com
   - DOMAIN-SUFFIX,qstore.inner.api.sj.360.cn
-  - DOMAIN-SUFFIX,quadvskinny.space
   - DOMAIN-SUFFIX,quanjing.cnzz.com
   - DOMAIN-SUFFIX,quantumads.com
   - DOMAIN-SUFFIX,quartermedia-ad-service.net
@@ -15423,7 +15420,6 @@ payload:
   - DOMAIN-SUFFIX,wan.2345.com
   - DOMAIN-SUFFIX,wan.youku.com
   - DOMAIN-SUFFIX,wangmeng.baidu.com
-  - DOMAIN-SUFFIX,wap.fbaddadsbook.com
   - DOMAIN-SUFFIX,wap.hot-mob.com
   - DOMAIN-SUFFIX,wap.mpush.qq.com
   - DOMAIN-SUFFIX,wapwbclick.mobile.sina.cn
@@ -16400,6 +16396,7 @@ payload:
   - DOMAIN-SUFFIX,www.pin.live-click.shop
   - DOMAIN-SUFFIX,www.piwik.ero-advertising.com
   - DOMAIN-SUFFIX,www.pl-oferta6583198-google-pixel-10-pro-xl-512.cfd
+  - DOMAIN-SUFFIX,www.pla.advanced-blutickfanpages.sbs
   - DOMAIN-SUFFIX,www.pladvertising-manage.com
   - DOMAIN-SUFFIX,www.plconnectpost.dns.army
   - DOMAIN-SUFFIX,www.poad1811.serv00.net
