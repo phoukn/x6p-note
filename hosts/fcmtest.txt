@@ -7,3 +7,7 @@
 2607:f8b0:4023:1::bc alt5-mtalk.google.com
 2607:f8b0:4002:c03::bc alt7-mtalk.google.com
 108.177.125.188 alt2-mtalk.google.com
+
+
+
+iptables -I OUTPUT 1 -o wlan0 -p tcp --dport 5228 -j REJECT
