@@ -1,6 +1,7 @@
 DOMAIN-KEYWORD,mtalk.google
-DOMAIN-SUFFIX,mobile-gtalk.l.google.com
+DOMAIN-SUFFIX,.mobile-gtalk.l.google.com
 DOMAIN-KEYWORD,mobile-gtalk
+DOMAIN,mobile-gtalk.l.google.com
 DOMAIN-SUFFIX,.xboxlive.com
 DOMAIN-SUFFIX,.126.net
 DOMAIN-SUFFIX,.adguardteam.github.io
