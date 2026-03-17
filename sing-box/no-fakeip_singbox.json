@@ -58,7 +58,8 @@
         ".xiami.com",
         ".xnotify.xboxlive.com",
         ".y.qq.com",
-        ".lsposed.org"
+        ".lsposed.org",
+        ".mobile-gtalk.l.google.com"
       ]
     },
     {
@@ -69,7 +70,9 @@
         "livekit",
         "turn.",
         "turns.",
-        "lkrtc"
+        "lkrtc",
+        "mobile-gtalk",
+        "mtalk.google"
       ]
     },
     {
@@ -93,7 +96,8 @@
         "github.com",
         "ssh.github.com",
         "api.github.com",
-        "gist.git"
+        "gist.git",
+        "mobile-gtalk.l.google.com"
       ]
     }
   ]
