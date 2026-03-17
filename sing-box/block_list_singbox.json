@@ -25,12 +25,15 @@
         "mobads.e.shifen.com",
         "pcs.baidu.com",
         "himg.bdimg.com",
+		"etrade.baidu.com",
+		"etrade-api.baidu.com",
         "imeres.baidu.com",
         "mbd.baidu.com",
         "wshifen.com",
         "ime.baidu.com",
         "shurufa.baidu.com",
-        "srf.baidu.com"
+        "srf.baidu.com",
+		"olimenew.baidu.com"
       ]
     },
     { "ip_cidr": ["49.7.228.53"]},
