@@ -93,10 +93,6 @@
     },
     {
       "domain": [
-        "github.com",
-        "ssh.github.com",
-        "api.github.com",
-        "gist.git",
         "mobile-gtalk.l.google.com"
       ]
     }
