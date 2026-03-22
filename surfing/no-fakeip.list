@@ -75,7 +75,3 @@ DOMAIN-REGEX,^xbox\.[^.]+\.[^.]+\.microsoft\.com$
 DOMAIN-REGEX,^[^.]+$
 DOMAIN-REGEX,^[^.]+\.[^.]+\.xboxlive\.com$
 DOMAIN-REGEX,^xbox\..*\.microsoft\.com$
-DOMAIN,github.com
-DOMAIN,ssh.github.com
-DOMAIN,api.github.com
-DOMAIN,gist.github.com
