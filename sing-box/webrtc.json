@@ -63,6 +63,8 @@
         "stun.chat.bilibili.com",
         "stun.hitv.com",
         "stun.miwifi.com",
+        "stun.smartgslb.com",
+        "stun.syncthing.net",
         "eu-stun-voip-azure.dyn.blackberry.net"
       ]
     }
