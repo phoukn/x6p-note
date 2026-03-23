@@ -58,17 +58,13 @@
         ".xiami.com",
         ".xnotify.xboxlive.com",
         ".y.qq.com",
-        ".lsposed.org",
         ".mobile-gtalk.l.google.com"
       ]
     },
     {
       "domain_keyword": [
         "ntp",
-        "stun1",
         "livekit",
-        "turn.",
-        "turns.",
         "lkrtc",
         "mobile-gtalk",
         "mtalk.google"
