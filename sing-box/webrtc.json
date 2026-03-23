@@ -3,8 +3,6 @@
   "rules": [
     {
       "domain": [
-        "stun.l.google.com",
-        "stun1.l.google.com",
         "stun2.l.google.com",
         "stun3.l.google.com",
         "stun4.l.google.com",
@@ -30,6 +28,14 @@
         "turn2.turnserver.me",
         "relay.metered.ca",
         "global.stun.twilio.com",
+        "stun.chat.bilibili.com",
+        "stun.hitv.com",
+        "stun.miwifi.com",
+        "stun.cloudflare.com",
+        "global.stun.twilio.com",
+        "stun.nextcloud.com",
+        "stun.voip.blackberry.com",
+        "stun.freeswitch.org",
         "stun.nextcloud.com"
       ]
     }
