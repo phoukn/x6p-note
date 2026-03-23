@@ -65,7 +65,6 @@
     {
       "domain_keyword": [
         "ntp",
-        "stun",
         "stun1",
         "livekit",
         "turn.",
@@ -77,8 +76,6 @@
     },
     {
       "domain_regex": [
-        "^stun[0-9]*\\..*",
-        "^.*\\.stun[0-9]*\\..*",
         "^ntp\\d?\\..*\\.com$",
         "^time\\d?\\..*\\.com$",
         "^time\\..*\\.apple\\.com$",
