@@ -55,11 +55,6 @@
         "com.microsoft.office.outlook"]
     },
     {
-      "domain": [
-        "stun1.l.google.com"
-      ]
-    },
-    {
       "domain_suffix": [
         ".gov.cn",
         ".edu.cn"
