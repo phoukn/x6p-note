@@ -55,6 +55,12 @@
         "com.microsoft.office.outlook"]
     },
     {
+      "domain_regex": [
+        "^ntp\\d?\\..*\\.com$",
+        "^time\\d?\\..*\\.com$"
+      ]
+    },
+    {
       "domain_suffix": [
         ".gov.cn",
         ".edu.cn"
