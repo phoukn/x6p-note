@@ -56,8 +56,8 @@
     },
     {
       "domain_regex": [
-        "^ntp\\d?\\..*\\.com$",
-        "^time\\d?\\..*\\.com$"
+        "^(ntp|time|clock)[0-9]*\\..*",
+        "\\.(ntp|time|clock|timeserver)[0-9]*\\."
       ]
     },
     {
