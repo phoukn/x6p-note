@@ -64,7 +64,6 @@
     {
       "domain_keyword": [
         "ntp",
-        "livekit",
         "lkrtc",
         "mobile-gtalk",
         "mtalk.google"
@@ -72,27 +71,20 @@
     },
     {
       "domain_regex": [
-        "^ntp\\d?\\..*\\.com$",
-        "^time\\d?\\..*\\.com$",
-        "^time\\..*\\.apple\\.com$",
-        "^time\\..*\\.edu\\.cn$",
+        "^(ntp|time|clock)[0-9]*\\..*",
+        "\\.(ntp|time|clock|timeserver)[0-9]*\\.",
         "^localhost\\.[^.]+\\.weixin\\.qq\\.com$",
         "^Mijia\\sCloud$",
         "^xbox\\.[^.]+\\.[^.]+\\.microsoft\\.com$",
         "^[^.]+$",
         "^[^.]+\\.[^.]+\\.xboxlive\\.com$",
-        "^xbox\\..*\\.microsoft\\.com$"
+        "^xbox\\..*\\.microsoft\\.com$",
+        "^(stun|turn|stuns|turns)[0-9]*\\.",
+        "\\.(stun|turn|stuns|turns)[0-9]*\\.",
+        "^(stun|turn|stuns|turns)[0-9]*[._-]?",
+        "[._-](stun|turn|stuns|turns)[0-9]*[._-]",
+        "[._-](stun|turn|stuns|turns)[0-9]*\\."
       ]
-    },
-    {
-      "domain_regex": [
-          "^stun[0-9]*\\.",
-          "^turn[0-9]*\\.",
-          "^[^.]+(?:[._-])?[^.]*[Ss]tun[0-9]*\\.",
-          "^[^.]+(?:[._-])?[^.]*[Tt]urn[0-9]*\\.",
-          "^[^.]+\\.[Ss]tun[0-9]*\\.",
-          "^[^.]+\\.[Tt]urn[0-9]*\\."
-        ]
     },
     {
       "domain": [
