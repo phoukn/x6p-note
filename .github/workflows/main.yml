@@ -84,15 +84,12 @@ jobs:
           domains = sorted(list(domains))
           print(f"✅ 提取了 {len(domains)} 个有效去广告域名")
           
-          # 1. 生成 Sing-box JSON (格式化排版 + Version 3)
           with open("sing-box/adblock_10007.json", "w", encoding="utf-8") as f:
               json.dump({"version": 3, "rules": [{"domain_suffix": domains}]}, f, indent=2, ensure_ascii=False)
               
-          # 2. 生成 Mihomo YAML
           with open("surfing/adblock_10007.yaml", "w", encoding="utf-8") as f:
               f.write("payload:\n" + "\n".join([f"  - DOMAIN-SUFFIX,{d}" for d in domains]) + "\n")
               
-          # 3. 生成纯净域名列表 (编译高性能 Mihomo .mrs 专用)
           with open("surfing/adblock_10007_domains.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(domains) + "\n")
           '
@@ -107,9 +104,65 @@ jobs:
             echo "✅ 成功生成: surfing/adblock_10007.mrs"
           fi
 
+      # ================= 新增：自动拉取并翻译 cn-additional-list =================
+      - name: Fetch & Convert cn-additional-list (Clash -> Sing-box)
+        run: |
+          python3 -c '
+          import urllib.request, json
+          url = "https://static-file-global.353355.xyz/rules/cn-additional-list.txt"
+          print("📥 正在下载 cn-additional-list...")
+          try:
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              content = urllib.request.urlopen(req).read().decode("utf-8")
+          except Exception as e:
+              print(f"下载失败: {e}")
+              exit(1)
+              
+          # 1. 原样保存到 surfing 文件夹供 Mihomo 订阅
+          with open("surfing/cn-additional-list.list", "w", encoding="utf-8") as f:
+              f.write(content)
+          print("✅ 已保存到 surfing/cn-additional-list.list")
+          
+          # 2. 智能翻译为 Sing-box JSON 格式
+          rules_map = {"DOMAIN": [], "DOMAIN-SUFFIX": [], "DOMAIN-KEYWORD": [], "DOMAIN-REGEX": [], "IP-CIDR": [], "IP-CIDR6": []}
+          for line in content.splitlines():
+              line = line.strip()
+              if not line or line.startswith("#"): continue
+              parts = [p.strip() for p in line.split(",")]
+              if len(parts) >= 2:
+                  rtype, payload = parts[0].upper(), parts[1]
+                  if rtype in rules_map:
+                      rules_map[rtype].append(payload)
+                      
+          singbox_rule = {}
+          mapping = {
+              "DOMAIN": "domain", 
+              "DOMAIN-SUFFIX": "domain_suffix", 
+              "DOMAIN-KEYWORD": "domain_keyword", 
+              "DOMAIN-REGEX": "domain_regex", 
+              "IP-CIDR": "ip_cidr", 
+              "IP-CIDR6": "ip_cidr"
+          }
+          
+          for c_type, s_type in mapping.items():
+              if rules_map[c_type]:
+                  if s_type not in singbox_rule: singbox_rule[s_type] = []
+                  singbox_rule[s_type].extend(rules_map[c_type])
+                  
+          for k in singbox_rule:
+              singbox_rule[k] = sorted(list(set(singbox_rule[k]))) # 去重并排序
+              
+          singbox_json = {"version": 3, "rules": [singbox_rule] if singbox_rule else []}
+          
+          with open("sing-box/cn-additional-list.json", "w", encoding="utf-8") as f:
+              json.dump(singbox_json, f, indent=2, ensure_ascii=False)
+          print("✅ 已成功翻译并保存到 sing-box/cn-additional-list.json")
+          '
+      # =========================================================================
+
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
-          echo "🔄 扫描并编译 Sing-box 规则集 (包含 10007 和 AWAvenue)..."
+          echo "🔄 扫描并编译 Sing-box 规则集 (包含刚才下载的 10007, AWAvenue, cn-additional)..."
           for f in sing-box/*.json; do
             [ -e "$f" ] || continue 
             if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
@@ -171,15 +224,20 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # 将所有新生成的文件加入暂存区
           git add sing-box/AWAvenue-Ads-Rule-Singbox.json || true
           git add sing-box/adblock_10007.json surfing/adblock_10007.yaml surfing/adblock_10007.mrs || true
+          
+          # 新增：记录 cn-additional 翻译结果
+          git add sing-box/cn-additional-list.json || true
+          
           find sing-box -name "*.srs" -exec git add {} + || true
           git add surfing/*.list || true
           
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: 同步进货、修复格式并编译全量二进制"
+            git commit -m "🤖 auto-update: 进货并全量翻译编译规则集"
             git push
-            echo "🎉 自动编译的规则与去广告订阅已推送！"
+            echo "🎉 自动编译的规则与远程订阅已更新推送！"
           else
-            echo "💤 源码无变化，二进制数据与昨日一致，跳过提交。"
+            echo "💤 源码无变化，数据与昨日一致，跳过提交。"
           fi
