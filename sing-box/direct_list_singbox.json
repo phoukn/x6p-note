@@ -56,6 +56,11 @@
         ".gov.cn",
         ".edu.cn"
       ]
+    },
+    {
+      "domain_regex": [
+        "^(ntp|time|clock)[0-9]*\\..*",
+        "\\.(ntp|time|clock|timeserver)[0-9]*\\."]
     }
   ]
 }
