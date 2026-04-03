@@ -1,7 +1,7 @@
 {
   "version": 3,
   "rules": [
-    { "domain_suffix": ["matrix.org","googleapis.cn",".lsposed.org","javfc2.xyz","linux.do"]},
+    { "domain_suffix": ["matrix.org","xn--ngstr-lra8j.com","googleapis.cn",".lsposed.org","javfc2.xyz","linux.do"]},
     { "domain_keyword":["pikpak"]},
     { "domain": ["bot.lsposed.org","lsposed.org"]}
   ]
