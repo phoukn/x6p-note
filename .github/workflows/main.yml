@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches:[ "main" ]
+    branches: [ "main" ]
   workflow_dispatch:
   schedule:
     - cron: '0 22 * * *' # 每天北京时间早 6 点自动运行
