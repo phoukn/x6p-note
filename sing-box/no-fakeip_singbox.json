@@ -58,12 +58,19 @@
         ".xiami.com",
         ".xnotify.xboxlive.com",
         ".y.qq.com",
-        ".mobile-gtalk.l.google.com"
+        ".mobile-gtalk.l.google.com",
+        "ping.archlinux.org",
+        "captive.apple.com",
+        "connectivitycheck.gstatic.com",
+        "cp.cloudflare.com",
+        "network-test.debian.org",
+        "detectportal.firefox.com",
+        "msftncsi.com",
+        "msftconnecttest.com"
       ]
     },
     {
       "domain_keyword": [
-        "ntp",
         "lkrtc",
         "mobile-gtalk",
         "mtalk.google"
@@ -156,7 +163,10 @@
     },
     {
       "domain": [
-        "mobile-gtalk.l.google.com"
+        "mobile-gtalk.l.google.com",
+        "connect.rom.miui.com",
+        "connectivitycheck.platform.hicloud.com",
+        "connectivitycheck.platform.hihonorcloud.com"
       ]
     }
   ]
