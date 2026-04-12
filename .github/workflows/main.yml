@@ -91,13 +91,12 @@ jobs:
 
       - name: Compile 10007 Hosts to Mihomo .mrs
         run: |
-          if[ -f "surfing/adblock_10007_domains.txt" ]; then
+          if [ -f "surfing/adblock_10007_domains.txt" ]; then
             rm -f surfing/adblock_10007.mrs
             mihomo convert-ruleset domain text surfing/adblock_10007_domains.txt surfing/adblock_10007.mrs || true
             rm -f surfing/adblock_10007_domains.txt
           fi
 
-      # ================= 进化版：批量拉取与智能翻译引擎 =================
       - name: Fetch & Convert Classical YAMLs (Clash -> Sing-box)
         run: |
           python3 -c '
@@ -118,13 +117,11 @@ jobs:
                   print(f"下载失败: {e}")
                   continue
                   
-              # 1. 保存供 Mihomo 原生使用
               with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
                   f.write(content)
               print(f"✅ 已保存到 surfing/{name}.yaml")
               
-              # 2. 提取 payload 列表并智能分类转换为 Sing-box 格式
-              rules_map = {"DOMAIN": [], "DOMAIN-SUFFIX": [], "DOMAIN-KEYWORD":[], "DOMAIN-REGEX": [], "IP-CIDR": [], "IP-CIDR6":[]}
+              rules_map = {"DOMAIN": [], "DOMAIN-SUFFIX":[], "DOMAIN-KEYWORD":[], "DOMAIN-REGEX": [], "IP-CIDR":[], "IP-CIDR6":[]}
               for line in content.splitlines():
                   line = line.strip()
                   if line.startswith("- "):
@@ -147,11 +144,11 @@ jobs:
               
               for c_type, s_type in mapping.items():
                   if rules_map[c_type]:
-                      if s_type not in singbox_rule: singbox_rule[s_type] = []
+                      if s_type not in singbox_rule: singbox_rule[s_type] =[]
                       singbox_rule[s_type].extend(rules_map[c_type])
                       
               for k in singbox_rule:
-                  singbox_rule[k] = sorted(list(set(singbox_rule[k]))) # 去重排序
+                  singbox_rule[k] = sorted(list(set(singbox_rule[k])))
                   
               singbox_json = {"version": 3, "rules":[singbox_rule] if singbox_rule else[]}
               
@@ -159,7 +156,6 @@ jobs:
                   json.dump(singbox_json, f, indent=2, ensure_ascii=False)
               print(f"✅ 已智能转换并保存到 sing-box/{name}.json")
           '
-      # =================================================================================
 
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
@@ -202,7 +198,7 @@ jobs:
         run: |
           IFS=$'\n'
           for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
-          for f in $(grep -E '\.sh$' changed.txt || true); do[ -n "$f" ] && shellcheck "$f" || true; done
+          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
           for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
           for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
           
@@ -210,9 +206,9 @@ jobs:
             awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
           fi
           
-          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do[ -z "$f" ] && continue
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
+            [ -z "$f" ] && continue
             yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
-            # 跳过 payload 规则文件的内核测试，防止报错
             if grep -q '^payload:' "$f"; then
               echo "✅ 跳过规则集 (payload) 的内核检查: $f"
             else
@@ -226,7 +222,6 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 自动提交所有的 json, yaml 和 srs 变动，不再需要繁琐的手动指定
           git add sing-box/*.json sing-box/*.srs surfing/*.yaml surfing/*.list surfing/*.mrs || true
           
           if ! git diff --staged --quiet; then
