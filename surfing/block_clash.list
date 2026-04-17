@@ -35,6 +35,7 @@ DOMAIN-SUFFIX,ime.baidu.com
 DOMAIN-SUFFIX,shurufa.baidu.com
 DOMAIN-SUFFIX,srf.baidu.com
 DOMAIN-SUFFIX,olimenew.baidu.com
+DOMAIN-SUFFIX,udpolimenew.n.shifen.com
 
 IP-CIDR,49.7.228.53/32
 IP-CIDR,14.29.101.168/32
