@@ -51,6 +51,7 @@
       "package_name": ["com.farlightgames.igame.gp",
         "com.microsoft.office.outlook"]
     },
+    { "domain": ["didou.ccwu.cc"] },
     {
       "domain_suffix": [
         ".gov.cn",
