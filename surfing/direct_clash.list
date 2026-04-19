@@ -11,6 +11,8 @@ DOMAIN-SUFFIX,login.microsoftonline.com
 DOMAIN-SUFFIX,aka.ms
 DOMAIN-KEYWORD,phone-link
 DOMAIN-KEYWORD,bitwarden
+DOMAIN-KEYWORD,mtalk.google
+DOMAIN-KEYWKRD,mobile-gtalk.l
 
 DOMAIN-SUFFIX,ks-cdn.com
 DOMAIN-SUFFIX,ksyuncdn.com
@@ -36,3 +38,6 @@ DOMAIN-SUFFIX,imap.yandex.ru
 
 DOMAIN-SUFFIX,.gov.cn
 DOMAIN-SUFFIX,.edu.cn
+
+DOAMIN-REGEX,^(ntp|time|clock)[0-9]*\\..*
+DOAMIN-REGEX,\\.(ntp|time|clock|timeserver)[0-9]*\\.
