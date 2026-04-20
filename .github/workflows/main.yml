@@ -259,9 +259,9 @@ jobs:
       - name: Lint changed Markdown, Scripts, Hosts & YAML configs
         run: |
           IFS=$'\n'
-          for f in $(grep -E '\.md$' changed.txt || true); do[ -n "$f" ] && markdownlint "$f" || true; done
+          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do[ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
           for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
           
           if grep -q '^hosts/host$' changed.txt; then
