@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *' # 每天北京时间早 6 点自动运行
+    - cron: '0 22 * * *'
 
 permissions:
   contents: write
@@ -25,7 +25,6 @@ jobs:
       - name: Get changed files (For Linting)
         id: changed-files
         run: |
-          # 修复了这里的 if 缺少空格的问题
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} > changed.txt
           else
@@ -56,12 +55,12 @@ jobs:
 
       - name: Fetch upstream (AWAvenue-Ads)
         run: |
-          echo "🔄 抓取 AWAvenue 去广告规则 (原生 Sing-box 格式)..."
+          echo "🔄 抓取 AWAvenue 去广告规则..."
           curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
       - name: Fetch & Convert 10007 Hosts
         run: |
-          python3 -c '
+          python3 << 'EOF'
           import urllib.request, json, re
           url = "https://raw.githubusercontent.com/lingeringsound/10007/main/all"
           try:
@@ -86,20 +85,26 @@ jobs:
               json.dump({"version": 3, "rules":[{"domain_suffix": domains}]}, f, indent=2, ensure_ascii=False)
           with open("surfing/adblock_10007.yaml", "w", encoding="utf-8") as f:
               f.write("payload:\n" + "\n".join([f"  - DOMAIN-SUFFIX,{d}" for d in domains]) + "\n")
-          
           with open("surfing/adblock_10007_domains.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(domains) + "\n")
-          '
+          EOF
 
-      - name: Fetch & Convert Classical Rules (Clash -> Sing-box)
+      - name: Compile 10007 Hosts to Mihomo .mrs
+        run: |
+          if[ -f "surfing/adblock_10007_domains.txt" ]; then
+            rm -f surfing/adblock_10007.mrs
+            mihomo convert-ruleset domain text surfing/adblock_10007_domains.txt surfing/adblock_10007.mrs || true
+            rm -f surfing/adblock_10007_domains.txt
+          fi
+
+      - name: Fetch & Convert Remote Rules (Bidirectional Sync)
         run: |
           python3 << 'EOF'
           import urllib.request, json
-          
-          # 🎮 【你的专属控制台】 🎮
-          # 以后有新的 Mihomo 规则 (txt/yaml)，直接在下面加一行即可！
-          # "mrs": True 表示它是纯域名，会自动帮你提纯并编译 mrs 二进制。
-          # "mrs": False 表示它是混合规则，保留 yaml 即可。
+
+          # 🎮 【双向智能翻译控制台】 🎮
+          # 支持扔进来的链接：TXT / YAML (Clash) / JSON (Sing-box)
+          # 机器人会自动判断源格式，自动为你生成另一端的格式！
           
           tasks = {
               "cn-additional-list": {
@@ -110,68 +115,95 @@ jobs:
                   "url": "https://raw.githubusercontent.com/SunsetMkt/anti-ip-attribution/main/generated/rule-provider-proxy.yaml",
                   "mrs": False
               }
-              # 想加新规则？就在这里模仿上面的格式写！
+              # 比如你找到一个 Sing-box 的去广告 json，只要在这里加一行："test-json": {"url": "xxx.json", "mrs": True} 即可！
           }
-          
+
+          s2c_map = {"domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR"}
+          c2s_map = {v: k for k, v in s2c_map.items()}
+          c2s_map["IP-CIDR6"] = "ip_cidr"
+
           for name, config in tasks.items():
-              url = config["url"]
-              compile_mrs = config["mrs"]
-              
+              url, compile_mrs = config["url"], config["mrs"]
               print(f"📥 正在下载 {name}...")
+              
               try:
                   req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                   content = urllib.request.urlopen(req).read().decode("utf-8")
               except Exception as e:
-                  print(f"下载失败: {e}")
+                  print(f"下载失败: {e}\n")
                   continue
+
+              # 智能探测：它是 JSON (Sing-box) 还是 YAML (Clash)？
+              is_json = False
+              try:
+                  parsed_json = json.loads(content)
+                  if "rules" in parsed_json: is_json = True
+              except: pass
+
+              domain_for_mrs = set()
+
+              if is_json:
+                  print(f"🔍 探测为 Sing-box JSON 格式 -> 准备反向翻译为 Mihomo YAML")
+                  # 1. 保存原生 JSON
+                  with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
+                      json.dump(parsed_json, f, indent=2, ensure_ascii=False)
                   
-              with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
-                  f.write(content)
-              print(f"✅ 已保存 YAML: surfing/{name}.yaml")
-              
-              rules_map = {"DOMAIN": [], "DOMAIN-SUFFIX":[], "DOMAIN-KEYWORD": [], "DOMAIN-REGEX":[], "IP-CIDR":[], "IP-CIDR6": []}
-              domain_for_mrs =[]
-              
-              for line in content.splitlines():
-                  line = line.strip()
-                  # 过滤空行、注释行以及 yaml 的 payload 声明
-                  if not line or line.startswith("#") or line == "payload:": continue
-                  
-                  # 史诗级兼容：不管是 "- DOMAIN,xxx" 还是纯文本 "DOMAIN,xxx" 都能完美识别
-                  if line.startswith("- "):
-                      rule = line[2:].strip().strip("\x27").strip("\x22")
-                  else:
+                  # 2. 翻译出 YAML 格式
+                  clash_rules =[]
+                  for rule in parsed_json.get("rules",[]):
+                      for s_key, c_key in s2c_map.items():
+                          if s_key in rule:
+                              items = rule[s_key]
+                              if isinstance(items, str): items = [items]
+                              for item in items:
+                                  clash_rules.append(f"  - {c_key},{item}")
+                                  if compile_mrs and c_key in ("DOMAIN", "DOMAIN-SUFFIX"):
+                                      domain_for_mrs.add(item)
+                                      
+                  with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
+                      f.write("payload:\n" + "\n".join(clash_rules) + "\n")
+
+              else:
+                  print(f"🔍 探测为 Clash YAML/TXT 格式 -> 准备翻译为 Sing-box JSON")
+                  # 1. 保存原生 YAML
+                  with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
+                      f.write(content)
+
+                  # 2. 翻译出 JSON 格式
+                  rules_map = {k:[] for k in c2s_map.keys()}
+                  for line in content.splitlines():
+                      line = line.strip()
+                      if not line or line.startswith("#") or line == "payload:": continue
+                      if line.startswith("- "): line = line[2:]
                       rule = line.strip().strip("\x27").strip("\x22")
-                      
-                  parts =[p.strip() for p in rule.split(",")]
-                  if len(parts) >= 2:
-                      rtype, payload = parts[0].upper(), parts[1]
-                      if rtype in rules_map:
-                          rules_map[rtype].append(payload)
-                      if compile_mrs and rtype in ("DOMAIN", "DOMAIN-SUFFIX"):
-                          domain_for_mrs.append(payload)
-              
-              if compile_mrs and domain_for_mrs:
-                  domain_for_mrs = sorted(list(set(domain_for_mrs)))
-                  with open(f"surfing/{name}_domains.txt", "w", encoding="utf-8") as f:
-                      f.write("\n".join(domain_for_mrs) + "\n")
-                  print(f"✅ 自动提取了 {len(domain_for_mrs)} 个纯净域名，准备进行 .mrs 编译")
-                              
-              singbox_rule = {}
-              mapping = {"DOMAIN": "domain", "DOMAIN-SUFFIX": "domain_suffix", "DOMAIN-KEYWORD": "domain_keyword", "DOMAIN-REGEX": "domain_regex", "IP-CIDR": "ip_cidr", "IP-CIDR6": "ip_cidr"}
-              
-              for c_type, s_type in mapping.items():
-                  if rules_map[c_type]:
-                      if s_type not in singbox_rule: singbox_rule[s_type] =[]
-                      singbox_rule[s_type].extend(rules_map[c_type])
-                      
-              for k in singbox_rule:
-                  singbox_rule[k] = sorted(list(set(singbox_rule[k])))
+
+                      parts = [p.strip() for p in rule.split(",")]
+                      if len(parts) >= 2:
+                          rtype, payload = parts[0].upper(), parts[1]
+                          if rtype in rules_map: rules_map[rtype].append(payload)
+                          if compile_mrs and rtype in ("DOMAIN", "DOMAIN-SUFFIX"):
+                              domain_for_mrs.add(payload)
+
+                  singbox_rule = {}
+                  for c_type, s_type in c2s_map.items():
+                      if rules_map.get(c_type):
+                          if s_type not in singbox_rule: singbox_rule[s_type] =[]
+                          singbox_rule[s_type].extend(rules_map[c_type])
+
+                  for k in singbox_rule: singbox_rule[k] = sorted(list(set(singbox_rule[k])))
+                  singbox_json = {"version": 3, "rules": [singbox_rule] if singbox_rule else[]}
                   
-              singbox_json = {"version": 3, "rules":[singbox_rule] if singbox_rule else[]}
-              with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
-                  json.dump(singbox_json, f, indent=2, ensure_ascii=False)
-              print(f"✅ 已翻译为 Sing-box: sing-box/{name}.json\n")
+                  with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
+                      json.dump(singbox_json, f, indent=2, ensure_ascii=False)
+
+              # 统一处理 MRS 二进制提纯
+              if compile_mrs and domain_for_mrs:
+                  domains = sorted(list(domain_for_mrs))
+                  with open(f"surfing/{name}_domains.txt", "w", encoding="utf-8") as f:
+                      f.write("\n".join(domains) + "\n")
+                  print(f"✅ 自动提取了 {len(domains)} 个纯净域名，准备进行 .mrs 编译")
+                  
+              print(f"✅ {name} 双端同步完成！\n")
           EOF
 
       - name: Compile ALL Domains to Mihomo .mrs
@@ -227,9 +259,9 @@ jobs:
       - name: Lint changed Markdown, Scripts, Hosts & YAML configs
         run: |
           IFS=$'\n'
-          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          for f in $(grep -E '\.md$' changed.txt || true); do[ -n "$f" ] && markdownlint "$f" || true; done
           for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do[ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
           for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
           
           if grep -q '^hosts/host$' changed.txt; then
@@ -255,9 +287,9 @@ jobs:
           git add sing-box/*.json sing-box/*.srs surfing/*.yaml surfing/*.list surfing/*.mrs || true
           
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: 批量同步远程规则并双端编译分发"
+            git commit -m "🤖 auto-update: 批量同步并双向翻译远程规则"
             git push
-            echo "🎉 自动编译的规则与远程订阅已更新推送！"
+            echo "🎉 自动编译与规则同步已完美收工！"
           else
             echo "💤 源码无变化，数据与昨日一致，跳过提交。"
           fi
