@@ -93,7 +93,7 @@ jobs:
 
       - name: Fetch & Convert Classical Rules (Clash -> Sing-box)
         run: |
-          python3 -c '
+          python3 << 'EOF'
           import urllib.request, json
           
           # 🎮 【你的专属控制台】 🎮
@@ -158,4 +158,106 @@ jobs:
                   print(f"✅ 自动提取了 {len(domain_for_mrs)} 个纯净域名，准备进行 .mrs 编译")
                               
               singbox_rule = {}
-              mapping = {"DOMAIN": "domain", "DOMAIN-SUFFIX": "domain_suffix", "DOMAIN-KEYWORD": "domain
+              mapping = {"DOMAIN": "domain", "DOMAIN-SUFFIX": "domain_suffix", "DOMAIN-KEYWORD": "domain_keyword", "DOMAIN-REGEX": "domain_regex", "IP-CIDR": "ip_cidr", "IP-CIDR6": "ip_cidr"}
+              
+              for c_type, s_type in mapping.items():
+                  if rules_map[c_type]:
+                      if s_type not in singbox_rule: singbox_rule[s_type] =[]
+                      singbox_rule[s_type].extend(rules_map[c_type])
+                      
+              for k in singbox_rule:
+                  singbox_rule[k] = sorted(list(set(singbox_rule[k])))
+                  
+              singbox_json = {"version": 3, "rules":[singbox_rule] if singbox_rule else[]}
+              with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
+                  json.dump(singbox_json, f, indent=2, ensure_ascii=False)
+              print(f"✅ 已翻译为 Sing-box: sing-box/{name}.json\n")
+          EOF
+
+      - name: Compile ALL Domains to Mihomo .mrs
+        run: |
+          echo "🔄 开始统一将提取的纯域名编译为 Mihomo .mrs ..."
+          shopt -s nullglob
+          for txt in surfing/*_domains.txt; do
+            name=$(basename "$txt" _domains.txt)
+            echo "正在极速编译 $name ..."
+            rm -f "surfing/${name}.mrs"
+            mihomo convert-ruleset domain text "$txt" "surfing/${name}.mrs" || echo "::error::${name} MRS编译失败"
+            rm -f "$txt"
+            echo "✅ 成功生成: surfing/${name}.mrs"
+          done
+
+      - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
+        run: |
+          echo "🔄 扫描并编译 Sing-box 规则集..."
+          for f in sing-box/*.json; do
+            [ -e "$f" ] || continue 
+            if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
+              srs_file="${f%.json}.srs"
+              rm -f "$srs_file"
+              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
+            else
+              sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置格式有误"
+            fi
+          done
+
+      - name: Format & Validate Mihomo Rules (.list syntax check)
+        run: |
+          echo "🔄 修复并校验 Mihomo 规则 (.list)..."
+          export LC_ALL=C.UTF-8
+          for f in surfing/*.list; do
+            [ -e "$f" ] || continue
+            sed -i 's/\r$//' "$f"
+            sed -i '1s/^\xEF\xBB\xBF//' "$f"
+            awk -F, '
+              /^\s*(#|\/\/|;|$)/ {next} 
+              {
+                type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
+                if (NF < 2) {
+                  print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
+                  next
+                }
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                  print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
+                }
+              }
+            ' "$f"
+          done
+
+      - name: Lint changed Markdown, Scripts, Hosts & YAML configs
+        run: |
+          IFS=$'\n'
+          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          
+          if grep -q '^hosts/host$' changed.txt; then
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
+          fi
+          
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
+            [ -z "$f" ] && continue
+            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
+            if grep -q '^payload:' "$f"; then
+              echo "✅ 跳过规则集 (payload) 的内核检查: $f"
+            else
+              mihomo -t -f "$f" || echo "::error file=$f::Mihomo yaml语法错误"
+            fi
+          done
+
+      - name: Commit and Push
+        if: always()
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add sing-box/*.json sing-box/*.srs surfing/*.yaml surfing/*.list surfing/*.mrs || true
+          
+          if ! git diff --staged --quiet; then
+            git commit -m "🤖 auto-update: 批量同步远程规则并双端编译分发"
+            git push
+            echo "🎉 自动编译的规则与远程订阅已更新推送！"
+          else
+            echo "💤 源码无变化，数据与昨日一致，跳过提交。"
+          fi
