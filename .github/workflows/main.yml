@@ -133,14 +133,24 @@ jobs:
                   
                   clash_rules =[]
                   for rule in parsed_json.get("rules",[]):
-                      for s_key, c_key in s2c_map.items():
+                      for s_key, c_key_default in s2c_map.items():
                           if s_key in rule:
                               items = rule[s_key]
                               if isinstance(items, str): items = [items]
                               for item in items:
-                                  clash_rules.append(f"  - {c_key},{item}")
+                                  item_str = str(item)
+                                  c_key = c_key_default
+                                  
+                                  # 【智能掩码修补引擎】
+                                  if s_key in ("ip_cidr", "source_ip_cidr"):
+                                      if "/" not in item_str:
+                                          item_str += "/128" if ":" in item_str else "/32"
+                                      if s_key == "ip_cidr" and ":" in item_str:
+                                          c_key = "IP-CIDR6"
+                                          
+                                  clash_rules.append(f"  - {c_key},{item_str}")
                                   if compile_mrs and c_key in ("DOMAIN", "DOMAIN-SUFFIX"):
-                                      domain_for_mrs.add(item)
+                                      domain_for_mrs.add(item_str)
                                       
                   with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
                       f.write("payload:\n" + "\n".join(clash_rules) + "\n")
@@ -180,13 +190,11 @@ jobs:
                       f.write("\n".join(domains) + "\n")
           EOF
 
-      # ================= 新增：本地自定义规则镜像同步 =================
       - name: Sync Local Custom Rules (Sing-box -> Mihomo)
         run: |
           python3 << 'EOF'
           import json, os
 
-          # 本地同步映射关系：源文件 -> {目标文件, 格式, 是否提取mrs}
           local_tasks = {
               "sing-box/direct_list_singbox.json": {"out": "surfing/direct_clash.list", "fmt": "list", "mrs": False},
               "sing-box/proxy_list_singbox.json": {"out": "surfing/proxy_clash.list", "fmt": "list", "mrs": False},
@@ -195,7 +203,6 @@ jobs:
               "sing-box/no-fakeip_singbox.json": {"out": "surfing/no-fakeip_singbox.yaml", "fmt": "yaml", "mrs": True}
           }
 
-          # 完整翻译字典，涵盖所有你能想到的高级属性
           s2c_map = {
               "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
@@ -203,8 +210,7 @@ jobs:
           }
 
           for in_path, config in local_tasks.items():
-              if not os.path.exists(in_path):
-                  continue
+              if not os.path.exists(in_path): continue
 
               print(f"🔄 镜像同步本地规则: {in_path} -> {config['out']}")
               with open(in_path, 'r', encoding='utf-8') as f:
@@ -215,15 +221,25 @@ jobs:
               domain_for_mrs = set()
 
               for rule in data.get("rules",[]):
-                  for s_key, c_key in s2c_map.items():
+                  for s_key, c_key_default in s2c_map.items():
                       if s_key in rule:
                           items = rule[s_key]
-                          # 防呆：某些属性（如port）可能是数字，需要转为字符串
                           if isinstance(items, str) or isinstance(items, int): items = [items]
                           for item in items:
-                              clash_rules.append(f"{c_key},{item}")
+                              item_str = str(item)
+                              c_key = c_key_default
+                              
+                              # 【智能掩码修补引擎】
+                              if s_key in ("ip_cidr", "source_ip_cidr"):
+                                  if "/" not in item_str:
+                                      item_str += "/128" if ":" in item_str else "/32"
+                                  # IPv6 标准化分配 IP-CIDR6 (SRC-IP-CIDR 不区分 v6, 所以仅对 ip_cidr 处理)
+                                  if s_key == "ip_cidr" and ":" in item_str:
+                                      c_key = "IP-CIDR6"
+                                      
+                              clash_rules.append(f"{c_key},{item_str}")
                               if config["mrs"] and c_key in ("DOMAIN", "DOMAIN-SUFFIX"):
-                                  domain_for_mrs.add(str(item))
+                                  domain_for_mrs.add(item_str)
 
               out_path = config['out']
               with open(out_path, 'w', encoding='utf-8') as f:
@@ -237,9 +253,7 @@ jobs:
                   base_name = os.path.basename(out_path).replace('.yaml', '')
                   with open(f"surfing/{base_name}_domains.txt", "w", encoding="utf-8") as f:
                       f.write("\n".join(domains) + "\n")
-                  print(f"✅ 提取 {len(domains)} 个域名准备编译 MRS")
           EOF
-      # ==============================================================
 
       - name: Compile ALL Domains to Mihomo .mrs
         run: |
