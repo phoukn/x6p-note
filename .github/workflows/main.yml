@@ -91,7 +91,7 @@ jobs:
 
       - name: Compile 10007 Hosts to Mihomo .mrs
         run: |
-          if[ -f "surfing/adblock_10007_domains.txt" ]; then
+          if [ -f "surfing/adblock_10007_domains.txt" ]; then
             rm -f surfing/adblock_10007.mrs
             mihomo convert-ruleset domain text surfing/adblock_10007_domains.txt surfing/adblock_10007.mrs || true
             rm -f surfing/adblock_10007_domains.txt
