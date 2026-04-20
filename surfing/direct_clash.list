@@ -41,3 +41,5 @@ DOMAIN-SUFFIX,.edu.cn
 
 DOAMIN-REGEX,^(ntp|time|clock)[0-9]*\\..*
 DOAMIN-REGEX,\\.(ntp|time|clock|timeserver)[0-9]*\\.
+
+DOMAIN,didou.ccwu.cc
