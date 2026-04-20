@@ -1,0 +1,11 @@
+payload:
+  - DOMAIN,stun.kuaishou.com
+  - DOMAIN,stun.imo.im
+  - DOMAIN,stun.xiaoe-tech.com
+  - DOMAIN,stun.waimai.meituan.com
+  - DOMAIN,stun.chat.bilibili.com
+  - DOMAIN,stun.hitv.com
+  - DOMAIN,stun.miwifi.com
+  - DOMAIN,stun.smartgslb.com
+  - DOMAIN,stun.syncthing.net
+  - DOMAIN,eu-stun-voip-azure.dyn.blackberry.net
