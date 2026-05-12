@@ -15,7 +15,7 @@
     { "domain_suffix": ["pingma.qq.com"]},
     { "domain_suffix": ["zmr2l0.attr.appsflyersdk.com"]},
     { "domain_suffix": ["ir-sdk.guardease.com"]},
-    { "domain_suffix": ["icosa-service-cn-01.allawntech.com","ping0.cc"]},
+    { "domain_suffix": ["icosa-service-cn-01.allawntech.com","ping0.cc","gitee.com"]},
     { "package_name": ["com.luckyzyx.luckytool","com.baidu.input_oppo","com.coloros.phonemanager"] },
 	{ "domain_suffix":[
         "mime.baidu.com",
