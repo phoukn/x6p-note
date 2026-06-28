@@ -1,7 +1,7 @@
 {
   "version": 3,
   "rules": [
-    { "domain_suffix": ["matrix.org","pikpak.com","mypikpak.com",".lsposed.org","javfc2.xyz","javfc2vid.top","linux.do"]},
-    { "domain": ["bot.lsposed.org","lsposed.org","stream.javfc2vid.top"]}
+    { "domain_suffix": ["matrix.org","pikpak.com","mypikpak.com",".lsposed.org","javfc2.xyz","linux.do"]},
+    { "domain": ["bot.lsposed.org","lsposed.org"]}
   ]
 }
