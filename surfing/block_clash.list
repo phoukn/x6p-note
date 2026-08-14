@@ -34,6 +34,10 @@ DOMAIN-SUFFIX,sofire.baidu.com
 DOMAIN-SUFFIX,newsofire.n.shifen.com
 DOMAIN-SUFFIX,olimenew.baidu.com
 DOMAIN-SUFFIX,udpolimenew.n.shifen.com
+DOMAIN,access.mypikpak.com
+DOMAIN,access.mypikpak.net
+DOMAIN,access.pikpak.me
+DOMAIN,access.pikpakdrive.com
 IP-CIDR,49.7.228.53/32
 IP-CIDR,14.29.101.168/32
 IP-CIDR,14.29.101.160/32
