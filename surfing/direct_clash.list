@@ -34,3 +34,4 @@ DOMAIN-SUFFIX,.gov.cn
 DOMAIN-SUFFIX,.edu.cn
 DOMAIN-REGEX,^(ntp|time|clock)[0-9]*\..*
 DOMAIN-REGEX,\.(ntp|time|clock|timeserver)[0-9]*\.
+DOMAIN-KEYWORD,dl-a10b-
