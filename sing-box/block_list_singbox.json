@@ -39,6 +39,7 @@
 		"udpolimenew.n.shifen.com"
       ]
     },
+	{ "domain": ["access.mypikpak.com","access.mypikpak.net","access.pikpak.me","access.pikpakdrive.com"]},
     { "ip_cidr": ["49.7.228.53"]},
     { "ip_cidr": ["14.29.101.168"]},
     { "ip_cidr": ["14.29.101.160"]},
