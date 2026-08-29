@@ -105,8 +105,16 @@ jobs:
               }
           }
 
-          s2c_map = {"domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR"}
+          # 【全面扩充】支持所有的规则属性
+          s2c_map = {
+              "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
+              "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
+              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME", 
+              "package_name": "PROCESS-NAME", "process_path": "PROCESS-PATH",
+              "geoip": "GEOIP", "geosite": "GEOSITE", "ip_asn": "IP-ASN"
+          }
           c2s_map = {v: k for k, v in s2c_map.items()}
+          c2s_map["PROCESS-NAME"] = "process_name" # Mihomo 统一转回 process_name
           c2s_map["IP-CIDR6"] = "ip_cidr"
 
           for name, config in tasks.items():
@@ -131,8 +139,8 @@ jobs:
                   with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
                       json.dump(parsed_json, f, indent=2, ensure_ascii=False)
                   
-                  clash_rules =[]
-                  for rule in parsed_json.get("rules",[]):
+                  clash_rules = []
+                  for rule in parsed_json.get("rules", []):
                       for s_key, c_key_default in s2c_map.items():
                           if s_key in rule:
                               items = rule[s_key]
@@ -141,7 +149,6 @@ jobs:
                                   item_str = str(item)
                                   c_key = c_key_default
                                   
-                                  # 【智能掩码修补引擎】
                                   if s_key in ("ip_cidr", "source_ip_cidr"):
                                       if "/" not in item_str:
                                           item_str += "/128" if ":" in item_str else "/32"
@@ -158,14 +165,14 @@ jobs:
                   with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
                       f.write(content)
 
-                  rules_map = {k:[] for k in c2s_map.keys()}
+                  rules_map = {k: [] for k in c2s_map.keys()}
                   for line in content.splitlines():
                       line = line.strip()
                       if not line or line.startswith("#") or line == "payload:": continue
                       if line.startswith("- "): line = line[2:]
                       rule = line.strip().strip("\x27").strip("\x22")
 
-                      parts =[p.strip() for p in rule.split(",")]
+                      parts = [p.strip() for p in rule.split(",")]
                       if len(parts) >= 2:
                           rtype, payload = parts[0].upper(), parts[1]
                           if rtype in rules_map: rules_map[rtype].append(payload)
@@ -179,7 +186,7 @@ jobs:
                           singbox_rule[s_type].extend(rules_map[c_type])
 
                   for k in singbox_rule: singbox_rule[k] = sorted(list(set(singbox_rule[k])))
-                  singbox_json = {"version": 3, "rules": [singbox_rule] if singbox_rule else[]}
+                  singbox_json = {"version": 3, "rules": [singbox_rule] if singbox_rule else []}
                   
                   with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
                       json.dump(singbox_json, f, indent=2, ensure_ascii=False)
@@ -203,24 +210,28 @@ jobs:
               "sing-box/no-fakeip_singbox.json": {"out": "surfing/no-fakeip_singbox.yaml", "fmt": "yaml", "mrs": True}
           }
 
+          # 【全面扩充字典】加入了 package_name, geoip 等等
           s2c_map = {
               "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
-              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME", "process_path": "PROCESS-PATH"
+              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME", 
+              "package_name": "PROCESS-NAME", "process_path": "PROCESS-PATH",
+              "geoip": "GEOIP", "geosite": "GEOSITE", "ip_asn": "IP-ASN"
           }
 
           for in_path, config in local_tasks.items():
-              if not os.path.exists(in_path): continue
+              if not os.path.exists(in_path):
+                  continue
 
               print(f"🔄 镜像同步本地规则: {in_path} -> {config['out']}")
               with open(in_path, 'r', encoding='utf-8') as f:
                   try: data = json.load(f)
                   except: continue
 
-              clash_rules =[]
+              clash_rules = []
               domain_for_mrs = set()
 
-              for rule in data.get("rules",[]):
+              for rule in data.get("rules", []):
                   for s_key, c_key_default in s2c_map.items():
                       if s_key in rule:
                           items = rule[s_key]
@@ -233,7 +244,6 @@ jobs:
                               if s_key in ("ip_cidr", "source_ip_cidr"):
                                   if "/" not in item_str:
                                       item_str += "/128" if ":" in item_str else "/32"
-                                  # IPv6 标准化分配 IP-CIDR6 (SRC-IP-CIDR 不区分 v6, 所以仅对 ip_cidr 处理)
                                   if s_key == "ip_cidr" and ":" in item_str:
                                       c_key = "IP-CIDR6"
                                       
@@ -253,6 +263,7 @@ jobs:
                   base_name = os.path.basename(out_path).replace('.yaml', '')
                   with open(f"surfing/{base_name}_domains.txt", "w", encoding="utf-8") as f:
                       f.write("\n".join(domains) + "\n")
+                  print(f"✅ 提取 {len(domains)} 个域名准备编译 MRS")
           EOF
 
       - name: Compile ALL Domains to Mihomo .mrs
@@ -298,7 +309,7 @@ jobs:
                   print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
                   next
                 }
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET)$/) {
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
                 }
               }
