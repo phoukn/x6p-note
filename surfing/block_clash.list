@@ -15,6 +15,9 @@ DOMAIN-SUFFIX,ir-sdk.guardease.com
 DOMAIN-SUFFIX,icosa-service-cn-01.allawntech.com
 DOMAIN-SUFFIX,ping0.cc
 DOMAIN-SUFFIX,gitee.com
+PROCESS-NAME,com.luckyzyx.luckytool
+PROCESS-NAME,com.baidu.input_oppo
+PROCESS-NAME,com.coloros.phonemanager
 DOMAIN-SUFFIX,mime.baidu.com
 DOMAIN-SUFFIX,mime.n.shifen.com
 DOMAIN-SUFFIX,imeres.baidu.com

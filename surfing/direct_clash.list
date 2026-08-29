@@ -30,6 +30,8 @@ DOMAIN-SUFFIX,imap.yandex.com
 DOMAIN-SUFFIX,smtp.yandex.com
 DOMAIN-SUFFIX,smtp.yandex.ru
 DOMAIN-SUFFIX,imap.yandex.ru
+PROCESS-NAME,com.farlightgames.igame.gp
+PROCESS-NAME,com.microsoft.office.outlook
 DOMAIN,didou.ccwu.cc
 DOMAIN-SUFFIX,.gov.cn
 DOMAIN-SUFFIX,.edu.cn
