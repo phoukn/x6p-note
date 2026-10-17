@@ -91,7 +91,7 @@ jobs:
           set -e
           # 下载最新 mihomo
           VER=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-          curl -fLsS -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/\( {VER}/mihomo-linux-amd64- \){VER}.gz"
+          curl -fLsS -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${VER}/mihomo-linux-amd64-${VER}.gz"
           gunzip -f mihomo.gz
           chmod +x mihomo
 
