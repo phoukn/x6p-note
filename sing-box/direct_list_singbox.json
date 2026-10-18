@@ -11,12 +11,6 @@
       "domain_suffix": ["edge.microsoft.com"]
     },
     {
-      "domain_suffix": ["graph.microsoft.com"]
-    },
-    {
-      "domain_suffix": ["login.microsoftonline.com"]
-    },
-    {
       "domain_suffix": ["aka.ms"]
     },
     {
