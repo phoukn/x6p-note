@@ -30,7 +30,7 @@ jobs:
           curl -fLsS --retry 3 -o v6_extra.txt "https://ispip.clang.cn/all_cn_ipv6.txt" || true
 
           python3 -c '
-          import ipaddress, os
+          import ipaddress, os, json
 
           def load_nets(files, version):
               nets = []
@@ -42,7 +42,6 @@ jobs:
                           line = line.strip()
                           if not line or line.startswith(("#", ";", "//")):
                               continue
-                          # 去掉可能存在的 IP-CIDR / IP-CIDR6 前缀
                           upper = line.upper()
                           if upper.startswith("IP-CIDR,"):
                               line = line.split(",", 1)[1].strip()
@@ -64,22 +63,40 @@ jobs:
                       f.write(str(n) + "\n")
 
           def write_payload_yaml(nets, path):
-              # 纯 CIDR 的 payload 格式（推荐，可直接转 mrs）
               with open(path, "w", encoding="utf-8") as f:
                   f.write("payload:\n")
                   for n in nets:
                       f.write(f"  - '\''{n}'\''\n")
 
+          def write_singbox_json(nets, path):
+              # sing-box rule-set source format
+              data = {
+                  "version": 3,
+                  "rules": [
+                      {
+                          "ip_cidr": [str(n) for n in nets]
+                      }
+                  ]
+              }
+              with open(path, "w", encoding="utf-8") as f:
+                  json.dump(data, f, ensure_ascii=False, indent=2)
+                  f.write("\n")
+
           os.makedirs("surfing", exist_ok=True)
+          os.makedirs("sing-box", exist_ok=True)
 
           v4 = load_nets(["v4_1.txt", "v4_2.txt", "v4_extra.txt"], 4)
           v6 = load_nets(["v6_1.txt", "v6_2.txt", "v6_extra.txt"], 6)
 
+          # mihomo / 通用
           write_pure_txt(v4, "surfing/china_ip_v4.txt")
           write_payload_yaml(v4, "surfing/china_ip_v4.yaml")
-
           write_pure_txt(v6, "surfing/china_ip_v6.txt")
           write_payload_yaml(v6, "surfing/china_ip_v6.yaml")
+
+          # sing-box json
+          write_singbox_json(v4, "sing-box/china_ip_v4.json")
+          write_singbox_json(v6, "sing-box/china_ip_v6.json")
 
           print(f"IPv4: {len(v4)}  IPv6: {len(v6)}")
           '
@@ -89,17 +106,42 @@ jobs:
       - name: Install mihomo & convert to MRS
         run: |
           set -e
-          # 下载最新 mihomo
           VER=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+          echo "mihomo version: $VER"
           curl -fLsS -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${VER}/mihomo-linux-amd64-${VER}.gz"
           gunzip -f mihomo.gz
           chmod +x mihomo
 
-          # 转 mrs（behavior 必须是 ipcidr）
           ./mihomo convert-ruleset ipcidr yaml surfing/china_ip_v4.yaml surfing/china_ip_v4.mrs
           ./mihomo convert-ruleset ipcidr yaml surfing/china_ip_v6.yaml surfing/china_ip_v6.mrs
-
           ls -lh surfing/china_ip_v4.* surfing/china_ip_v6.*
+
+      - name: Install sing-box & convert to SRS
+        run: |
+          set -e
+          # 下载最新 sing-box
+          SB_VER=$(curl -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+          echo "sing-box version: $SB_VER"
+          # 去掉可能的 v 前缀用于文件名匹配
+          SB_TAG="${SB_VER#v}"
+
+          # 从 release 里抓 linux-amd64 tar.gz
+          DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest \
+            | grep -oP '"browser_download_url": "\K[^"]+sing-box-[^"]+-linux-amd64\.tar\.gz' \
+            | head -n1)
+          echo "Download: $DOWNLOAD_URL"
+          curl -fLsS -o sing-box.tar.gz "$DOWNLOAD_URL"
+          tar -xzf sing-box.tar.gz
+          # 解压后目录名通常是 sing-box-<ver>-linux-amd64
+          SB_BIN=$(find . -type f -name sing-box -path "*/sing-box-*-linux-amd64/*" | head -n1)
+          chmod +x "$SB_BIN"
+          "$SB_BIN" version
+
+          # 编译 json -> srs
+          "$SB_BIN" rule-set compile --output sing-box/china_ip_v4.srs sing-box/china_ip_v4.json
+          "$SB_BIN" rule-set compile --output sing-box/china_ip_v6.srs sing-box/china_ip_v6.json
+
+          ls -lh sing-box/china_ip_v4.* sing-box/china_ip_v6.*
 
       - name: Commit and Push
         if: always()
@@ -107,11 +149,14 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          git add surfing/china_ip_v4.txt surfing/china_ip_v4.yaml surfing/china_ip_v4.mrs \
-                  surfing/china_ip_v6.txt surfing/china_ip_v6.yaml surfing/china_ip_v6.mrs || true
+          git add \
+            surfing/china_ip_v4.txt surfing/china_ip_v4.yaml surfing/china_ip_v4.mrs \
+            surfing/china_ip_v6.txt surfing/china_ip_v6.yaml surfing/china_ip_v6.mrs \
+            sing-box/china_ip_v4.json sing-box/china_ip_v4.srs \
+            sing-box/china_ip_v6.json sing-box/china_ip_v6.srs || true
 
           if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: China IP (txt / yaml payload / mrs)"
+            git commit -m "🤖 auto-update: China IP (mihomo mrs + sing-box srs)"
             git push
             echo "🎉 已更新并推送"
           else
