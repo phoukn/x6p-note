@@ -146,6 +146,7 @@ jobs:
       - name: Commit and Push
         if: always()
         run: |
+          set -e
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
@@ -155,10 +156,15 @@ jobs:
             sing-box/china_ip_v4.json sing-box/china_ip_v4.srs \
             sing-box/china_ip_v6.json sing-box/china_ip_v6.srs || true
 
-          if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: China IP (mihomo mrs + sing-box srs)"
-            git push
-            echo "🎉 已更新并推送"
-          else
+          if git diff --staged --quiet; then
             echo "💤 无变化"
+            exit 0
           fi
+
+          git commit -m "🤖 auto-update: China IP (mihomo mrs + sing-box srs)"
+
+          # 先拉远程再推，避免 rejected
+          git pull --rebase origin main
+          git push origin main
+
+          echo "🎉 已更新并推送"
