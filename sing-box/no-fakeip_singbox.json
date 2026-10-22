@@ -3,6 +3,7 @@
   "rules": [
     {
       "domain_suffix": [
+        "cloudflare-ech.com",
         ".xboxlive.com",
         ".126.net",
         ".adguardteam.github.io",
@@ -167,6 +168,7 @@
       "domain": [
         "mobile-gtalk.l.google.com",
         "connect.rom.miui.com",
+        "cloudflare-ech.com",
         "connectivitycheck.platform.hicloud.com",
         "connectivitycheck.platform.hihonorcloud.com"
       ]
