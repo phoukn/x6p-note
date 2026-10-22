@@ -79,6 +79,8 @@ payload:
   - DOMAIN-REGEX,^(stun|turn|stuns|turns)[0-9]*[._-]?
   - DOMAIN-REGEX,[._-](stun|turn|stuns|turns)[0-9]*[._-]
   - DOMAIN-REGEX,[._-](stun|turn|stuns|turns)[0-9]*\.
+  - DOMAIN,didou.ccwu.cc
+  - DOMAIN,didou.us.ci
   - DOMAIN,stun.l.google.com
   - DOMAIN,stun1.l.google.com
   - DOMAIN,stun2.l.google.com
