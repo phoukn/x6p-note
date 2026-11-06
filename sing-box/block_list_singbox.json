@@ -1,7 +1,7 @@
 {
   "version": 3,
   "rules": [
-    { "domain_suffix": ["gjfzpt.cn"]},
+    { "domain_suffix": ["gjfzpt.cn","fxltsbl.com"]},
     { "domain_suffix": ["fzapp.gjfzpt.cn"]},
     { "domain_suffix": ["fzapph5.gjfzpt.cn"]},
     { "domain_suffix": ["fzapp-test-tyy.gjfzpt.cn"]},
@@ -39,7 +39,7 @@
 		"udpolimenew.n.shifen.com"
       ]
     },
-	{ "domain": ["access.mypikpak.com","access.mypikpak.net","access.pikpak.me","access.pikpakdrive.com"]},
+	{ "domain": ["access.mypikpak.com","a.fxltsbl.com","access.mypikpak.net","access.pikpak.me","access.pikpakdrive.com"]},
     { "ip_cidr": ["49.7.228.53"]},
     { "ip_cidr": ["14.29.101.168"]},
     { "ip_cidr": ["14.29.101.160"]},
