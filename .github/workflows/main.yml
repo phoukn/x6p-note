@@ -223,12 +223,21 @@ jobs:
 
       - name: Convert accelerated-domains.china (Sing-box JSON → YAML + MRS)
         run: |
+          set -euo pipefail   # ← 新增：Python/curl/mihomo 任一失败立即停，避免带着空文件继续编译
           echo "🔄 转换 accelerated-domains.china ..."
           mkdir -p surfing
       
-          # 下载源 JSON
-          curl -L -o /tmp/accelerated-domains.china.json \
-            "https://github.com/Dreista/sing-box-rule-set-cn/raw/refs/heads/rule-set/accelerated-domains.china.conf.json"
+          # 使用 raw.githubusercontent.com（更稳定）
+          curl -fsSL --retry 3 --retry-delay 2 \
+            -o /tmp/accelerated-domains.china.json \
+            "https://raw.githubusercontent.com/Dreista/sing-box-rule-set-cn/rule-set/accelerated-domains.china.conf.json"
+      
+          # 检查文件是否有效
+          if [ ! -s /tmp/accelerated-domains.china.json ] || [ "$(stat -c%s /tmp/accelerated-domains.china.json)" -lt 10000 ]; then
+            echo "❌ 下载失败或文件过小"
+            head -c 300 /tmp/accelerated-domains.china.json || true
+            exit 1
+          fi
       
           python3 << 'EOF'
           import json
@@ -236,30 +245,40 @@ jobs:
           with open("/tmp/accelerated-domains.china.json", "r", encoding="utf-8") as f:
               data = json.load(f)
       
-          # 提取 domain / domain_suffix
+          rules = data.get("rules")
+          if not rules:
+              raise SystemExit("❌ 源文件没有 rules 字段，上游格式可能变了")
+      
           domains = set()
           domain_suffixes = set()
       
-          for rule in data.get("rules", []):
+          for rule in rules:
               if "domain" in rule:
                   items = rule["domain"] if isinstance(rule["domain"], list) else [rule["domain"]]
-                  domains.update(items)
+                  domains.update(str(i) for i in items)
               if "domain_suffix" in rule:
                   items = rule["domain_suffix"] if isinstance(rule["domain_suffix"], list) else [rule["domain_suffix"]]
-                  domain_suffixes.update(items)
+                  domain_suffixes.update(str(i) for i in items)
       
-          # 生成 Mihomo YAML
           clash_rules = []
           for d in sorted(domains):
               clash_rules.append(f"  - DOMAIN,{d}")
           for d in sorted(domain_suffixes):
               clash_rules.append(f"  - DOMAIN-SUFFIX,{d}")
       
+          if not clash_rules:
+              raise SystemExit("❌ 没有从源文件提取到任何规则")
+      
           with open("surfing/accelerated-domains.china.yaml", "w", encoding="utf-8") as f:
               f.write("payload:\n" + "\n".join(clash_rules) + "\n")
       
-          # 生成纯域名列表用于编译 MRS（domain + domain_suffix 都当 DOMAIN-SUFFIX 处理也可以，这里分开）
+          # 注意：MRS 的 domain 类型只有后缀匹配语义，DOMAIN（精确）条目
+          # 合并进 _domains.txt 编译后会被当作 DOMAIN-SUFFIX 处理，匹配范围略微放大。
+          # accelerated-domains.china 的 DOMAIN 条目通常已被 DOMAIN-SUFFIX 覆盖，影响可忽略。
           all_for_mrs = sorted(domains | domain_suffixes)
+          if not all_for_mrs:
+              raise SystemExit("❌ 没有可编译 MRS 的域名")
+      
           with open("surfing/accelerated-domains.china_domains.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(all_for_mrs) + "\n")
       
@@ -267,11 +286,11 @@ jobs:
           print(f"✅ 已提取 {len(all_for_mrs)} 个域名准备编译 MRS")
           EOF
       
-          # 编译成 MRS（复用后面统一编译的逻辑也可以，这里直接编译更直观）
           mihomo convert-ruleset domain text \
             surfing/accelerated-domains.china_domains.txt \
             surfing/accelerated-domains.china.mrs
       
+          # set -e 保证走到这里说明前面全部成功，此时才清理中间文件
           rm -f surfing/accelerated-domains.china_domains.txt /tmp/accelerated-domains.china.json
           echo "✅ 已生成 surfing/accelerated-domains.china.mrs"
           
