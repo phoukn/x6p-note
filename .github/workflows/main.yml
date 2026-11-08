@@ -394,11 +394,12 @@ jobs:
         run: |
           echo "🔄 修复并校验 Mihomo 规则 (.list)..."
           export LC_ALL=C.UTF-8
+          bad=0
           for f in surfing/*.list; do
             [ -e "$f" ] || continue
             sed -i 's/\r$//' "$f"
             sed -i '1s/^\xEF\xBB\xBF//' "$f"
-            awk -F, '
+            awk -F, -v bad_ref=0 '
               /^[[:space:]]*(#|\/\/|;|$)/ {next} 
               {
                 type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
