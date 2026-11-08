@@ -1,7 +1,7 @@
 {
   "version": 3,
   "rules": [
-    { "domain_suffix": ["matrix.org",".lsposed.org","nextdns.io","javfc2.xyz","javfc2.top","javfc2vid.top","123av.com","linux.do"]},
+    { "domain_suffix": ["matrix.org",".lsposed.org","nextdns.io","javfc2.xyz","javfc2.top","javfc2vid.top","googleapis.cn","123av.com","linux.do"]},
     { "domain": ["bot.lsposed.org","lsposed.org","didou.ccwu.cc","didou.us.ci"]},
     {
       "domain_suffix": [
