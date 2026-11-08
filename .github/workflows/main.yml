@@ -31,7 +31,17 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed.txt || touch changed.txt
           fi
 
-      - name: Install tools
+      # ==================== 工具与内核安装 ====================
+      - name: Cache proxy cores
+        id: cache-cores
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/mihomo
+            /usr/local/bin/sing-box
+          key: cores-${{ runner.os }}-v1
+
+      - name: Install tools & cores
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -39,26 +49,39 @@ jobs:
           sudo apt-get install -y shellcheck jq python3-pip gzip tar
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
-      
+
+          # 如果缓存命中，直接跳过下载
+          if [ -x /usr/local/bin/mihomo ] && [ -x /usr/local/bin/sing-box ]; then
+            echo "✅ 使用缓存的 mihomo 和 sing-box"
+            mihomo -v || true
+            sing-box version || true
+            exit 0
+          fi
+
           echo "=== 下载 Mihomo ==="
-          # 用 gh 下载最新 release 中匹配的资产
-          gh release download --repo MetaCubeX/mihomo --pattern "*linux-amd64-compatible*.gz" --output mihomo.gz
-          gzip -d mihomo.gz
+          gh release download --repo MetaCubeX/mihomo \
+            --pattern "*linux-amd64-compatible*.gz" \
+            --output mihomo.gz
+          gunzip -f mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
-          mihomo -v || true
-      
-          echo "=== 下载 Sing-box ==="
-          gh release download --repo SagerNet/sing-box --pattern "sing-box-*-linux-amd64.tar.gz" --output sing-box.tar.gz
-          tar -xzf sing-box.tar.gz
-          sudo mv sing-box-*/sing-box /usr/local/bin/
-          sing-box version || true
-          rm -rf sing-box-* sing-box.tar.gz
+          mihomo -v
 
+          echo "=== 下载 Sing-box ==="
+          gh release download --repo SagerNet/sing-box \
+            --pattern "sing-box-*-linux-amd64.tar.gz" \
+            --output sing-box.tar.gz
+          tar -xzf sing-box.tar.gz --strip-components=1 -C /tmp
+          sudo mv /tmp/sing-box /usr/local/bin/
+          sing-box version
+          rm -f sing-box.tar.gz
+
+      # ==================== 规则拉取与转换 ====================
       - name: Fetch upstream (AWAvenue-Ads)
         run: |
           echo "🔄 抓取 AWAvenue 去广告规则..."
-          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
+          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json \
+            "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
       - name: Fetch & Convert 10007 Hosts
         run: |
@@ -107,7 +130,6 @@ jobs:
               }
           }
 
-          # 【全面扩充】支持所有的规则属性
           s2c_map = {
               "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
@@ -116,7 +138,7 @@ jobs:
               "geoip": "GEOIP", "geosite": "GEOSITE", "ip_asn": "IP-ASN"
           }
           c2s_map = {v: k for k, v in s2c_map.items()}
-          c2s_map["PROCESS-NAME"] = "process_name" # Mihomo 统一转回 process_name
+          c2s_map["PROCESS-NAME"] = "process_name"
           c2s_map["IP-CIDR6"] = "ip_cidr"
 
           for name, config in tasks.items():
@@ -212,7 +234,6 @@ jobs:
               "sing-box/no-fakeip_singbox.json": {"out": "surfing/no-fakeip_singbox.yaml", "fmt": "yaml", "mrs": True}
           }
 
-          # 【全面扩充字典】加入了 package_name, geoip 等等
           s2c_map = {
               "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
@@ -242,7 +263,6 @@ jobs:
                               item_str = str(item)
                               c_key = c_key_default
                               
-                              # 【智能掩码修补引擎】
                               if s_key in ("ip_cidr", "source_ip_cidr"):
                                   if "/" not in item_str:
                                       item_str += "/128" if ":" in item_str else "/32"
@@ -268,15 +288,16 @@ jobs:
                   print(f"✅ 提取 {len(domains)} 个域名准备编译 MRS")
           EOF
 
+      # ==================== 编译阶段 ====================
       - name: Compile ALL Domains to Mihomo .mrs
         run: |
           echo "🔄 开始统一将提取的纯域名编译为 Mihomo .mrs ..."
           shopt -s nullglob
           for txt in surfing/*_domains.txt; do
             name=$(basename "$txt" _domains.txt)
-            echo "正在极速编译 $name ..."
+            echo "正在编译 $name ..."
             rm -f "surfing/${name}.mrs"
-            mihomo convert-ruleset domain text "$txt" "surfing/${name}.mrs" || echo "::error::${name} MRS编译失败"
+            mihomo convert-ruleset domain text "\( txt" "surfing/ \){name}.mrs" || echo "::error::${name} MRS编译失败"
             rm -f "$txt"
             echo "✅ 成功生成: surfing/${name}.mrs"
           done
@@ -295,6 +316,7 @@ jobs:
             fi
           done
 
+      # ==================== 校验阶段 ====================
       - name: Format & Validate Mihomo Rules (.list syntax check)
         run: |
           echo "🔄 修复并校验 Mihomo 规则 (.list)..."
@@ -311,7 +333,7 @@ jobs:
                   print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
                   next
                 }
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
+                if (type !\~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
                 }
               }
@@ -321,16 +343,16 @@ jobs:
       - name: Lint changed Markdown, Scripts, Hosts & YAML configs
         run: |
           IFS=$'\n'
-          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
-          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          for f in \( (grep -E '\.md \)' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          for f in \( (grep -E '\.sh \)' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
+          for f in \( (grep -E '\.py \)' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in \( (grep -E '\.js \)' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
           
           if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
+            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !\~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
           fi
           
-          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
+          for f in \( (grep -E 'surfing/.*\.ya?ml \)' changed.txt || true); do
             [ -z "$f" ] && continue
             yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
             if grep -q '^payload:' "$f"; then
@@ -340,6 +362,7 @@ jobs:
             fi
           done
 
+      # ==================== 提交 ====================
       - name: Commit and Push
         if: always()
         run: |
