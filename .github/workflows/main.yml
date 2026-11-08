@@ -80,7 +80,7 @@ jobs:
       - name: Fetch upstream (AWAvenue-Ads)
         run: |
           echo "🔄 抓取 AWAvenue 去广告规则..."
-          curl -L -o sing-box/AWAvenue-Ads-Rule-Singbox.json \
+          curl -fsSL -o sing-box/AWAvenue-Ads-Rule-Singbox.json \
             "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
 
       - name: Fetch & Convert 10007 Hosts
@@ -221,6 +221,60 @@ jobs:
                       f.write("\n".join(domains) + "\n")
           EOF
 
+      - name: Convert accelerated-domains.china (Sing-box JSON → YAML + MRS)
+        run: |
+          echo "🔄 转换 accelerated-domains.china ..."
+          mkdir -p surfing
+      
+          # 下载源 JSON
+          curl -L -o /tmp/accelerated-domains.china.json \
+            "https://github.com/Dreista/sing-box-rule-set-cn/raw/refs/heads/rule-set/accelerated-domains.china.conf.json"
+      
+          python3 << 'EOF'
+          import json
+      
+          with open("/tmp/accelerated-domains.china.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+      
+          # 提取 domain / domain_suffix
+          domains = set()
+          domain_suffixes = set()
+      
+          for rule in data.get("rules", []):
+              if "domain" in rule:
+                  items = rule["domain"] if isinstance(rule["domain"], list) else [rule["domain"]]
+                  domains.update(items)
+              if "domain_suffix" in rule:
+                  items = rule["domain_suffix"] if isinstance(rule["domain_suffix"], list) else [rule["domain_suffix"]]
+                  domain_suffixes.update(items)
+      
+          # 生成 Mihomo YAML
+          clash_rules = []
+          for d in sorted(domains):
+              clash_rules.append(f"  - DOMAIN,{d}")
+          for d in sorted(domain_suffixes):
+              clash_rules.append(f"  - DOMAIN-SUFFIX,{d}")
+      
+          with open("surfing/accelerated-domains.china.yaml", "w", encoding="utf-8") as f:
+              f.write("payload:\n" + "\n".join(clash_rules) + "\n")
+      
+          # 生成纯域名列表用于编译 MRS（domain + domain_suffix 都当 DOMAIN-SUFFIX 处理也可以，这里分开）
+          all_for_mrs = sorted(domains | domain_suffixes)
+          with open("surfing/accelerated-domains.china_domains.txt", "w", encoding="utf-8") as f:
+              f.write("\n".join(all_for_mrs) + "\n")
+      
+          print(f"✅ 已生成 surfing/accelerated-domains.china.yaml （共 {len(clash_rules)} 条）")
+          print(f"✅ 已提取 {len(all_for_mrs)} 个域名准备编译 MRS")
+          EOF
+      
+          # 编译成 MRS（复用后面统一编译的逻辑也可以，这里直接编译更直观）
+          mihomo convert-ruleset domain text \
+            surfing/accelerated-domains.china_domains.txt \
+            surfing/accelerated-domains.china.mrs
+      
+          rm -f surfing/accelerated-domains.china_domains.txt /tmp/accelerated-domains.china.json
+          echo "✅ 已生成 surfing/accelerated-domains.china.mrs"
+          
       - name: Sync Local Custom Rules (Sing-box -> Mihomo)
         run: |
           python3 << 'EOF'
@@ -297,7 +351,7 @@ jobs:
             name=$(basename "$txt" _domains.txt)
             echo "正在编译 $name ..."
             rm -f "surfing/${name}.mrs"
-            mihomo convert-ruleset domain text "\( txt" "surfing/ \){name}.mrs" || echo "::error::${name} MRS编译失败"
+            mihomo convert-ruleset domain text "$txt" "surfing/${name}.mrs" || echo "::error::${name} MRS编译失败"
             rm -f "$txt"
             echo "✅ 成功生成: surfing/${name}.mrs"
           done
@@ -326,41 +380,47 @@ jobs:
             sed -i 's/\r$//' "$f"
             sed -i '1s/^\xEF\xBB\xBF//' "$f"
             awk -F, '
-              /^\s*(#|\/\/|;|$)/ {next} 
+              /^[[:space:]]*(#|\/\/|;|$)/ {next} 
               {
                 type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
                 if (NF < 2) {
                   print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
                   next
                 }
-                if (type !\~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
+                  bad_ref=1
                 }
               }
-            ' "$f"
+              END { exit bad_ref }
+            ' "$f" || bad=1
           done
+          [ "$bad" -eq 0 ] || exit 1
 
       - name: Lint changed Markdown, Scripts, Hosts & YAML configs
         run: |
           IFS=$'\n'
-          for f in \( (grep -E '\.md \)' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
-          for f in \( (grep -E '\.sh \)' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in \( (grep -E '\.py \)' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in \( (grep -E '\.js \)' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
+          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
+          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
+          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
           
           if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^\s*(#|$)/ {if (NF < 2 || $1 !\~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
+            awk '!/^[[:space:]]*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || true
           fi
           
-          for f in \( (grep -E 'surfing/.*\.ya?ml \)' changed.txt || true); do
+          bad=0
+          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
             [ -z "$f" ] && continue
             yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
             if grep -q '^payload:' "$f"; then
               echo "✅ 跳过规则集 (payload) 的内核检查: $f"
             else
-              mihomo -t -f "$f" || echo "::error file=$f::Mihomo yaml语法错误"
+              mihomo -t -f "$f" || { echo "::error file=$f::Mihomo yaml语法错误"; bad=1; }
             fi
           done
+          [ "$bad" -eq 0 ] || exit 1
 
       # ==================== 提交 ====================
       - name: Commit and Push
