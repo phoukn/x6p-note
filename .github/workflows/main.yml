@@ -35,23 +35,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck jq python3-pip gzip tar
-          pip install flake8 yamllint --break-system-packages
-          npm install -g markdownlint-cli
-          
-          echo "=== 下载 Mihomo ==="
-          MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
-          curl -L -o mihomo.gz "$MIHOMO_URL"
-          gzip -d mihomo.gz
-          chmod +x mihomo
-          sudo mv mihomo /usr/local/bin/
+         sudo apt-get update
+         sudo apt-get install -y shellcheck jq python3-pip gzip tar
+         pip install flake8 yamllint --break-system-packages
+         npm install -g markdownlint-cli
+    
+         echo "=== 下载 Mihomo ==="
+         MIHOMO_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+           https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | \
+           jq -r '.assets[] | select(.name | contains("linux-amd64-compatible") and contains(".gz")) | .browser_download_url' | head -n 1)
+    
+         if [ -z "$MIHOMO_URL" ] || [ "$MIHOMO_URL" = "null" ]; then
+           echo "错误：无法获取 Mihomo 下载地址"
+           exit 1
+         fi
+         echo "Mihomo URL: $MIHOMO_URL"
+         curl -L -o mihomo.gz "$MIHOMO_URL"
+         gzip -d mihomo.gz
+         chmod +x mihomo
+         sudo mv mihomo /usr/local/bin/
 
           echo "=== 下载 Sing-box ==="
-          SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("linux-amd64.tar.gz")) | .browser_download_url' | head -n 1)
-          curl -L -o sing-box.tar.gz "$SING_URL"
-          tar -xzf sing-box.tar.gz
-          sudo mv sing-box-*/sing-box /usr/local/bin/
+         # 更精确的匹配，并加空值检查
+         SING_URL=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+           https://api.github.com/repos/SagerNet/sing-box/releases/latest | \
+           jq -r '.assets[] | select(.name | test("sing-box-.*-linux-amd64\\.tar\\.gz$")) | .browser_download_url' | head -n 1)
+    
+         if [ -z "$SING_URL" ] || [ "$SING_URL" = "null" ]; then
+           echo "错误：无法获取 Sing-box 下载地址，尝试使用固定版本..."
+           # 备用方案：直接写死最新稳定版
+           SING_URL="https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-linux-amd64.tar.gz"
+         fi
+    
+         echo "Sing-box URL: $SING_URL"
+         curl -L -o sing-box.tar.gz "$SING_URL"
+    
+         # 简单校验文件大小，防止再次下到错误页
+         if [ $(stat -c%s sing-box.tar.gz) -lt 1000000 ]; then
+           echo "错误：下载的文件过小，可能不是有效的二进制包"
+           file sing-box.tar.gz
+           head -c 300 sing-box.tar.gz
+           exit 1
+         fi
+    
+         tar -xzf sing-box.tar.gz
+         sudo mv sing-box-*/sing-box /usr/local/bin/
+         rm -rf sing-box-* sing-box.tar.gz
 
       - name: Fetch upstream (AWAvenue-Ads)
         run: |
