@@ -40,7 +40,7 @@
       "domain_suffix": ["immersivetranslate.com"]},
     {
       "domain_suffix": ["imap.yandex.com",
-        "smtp.yandex.com","smtp.yandex.ru","imap.yandex.ru"]},
+        "smtp.yandex.com","smtp.yandex.ru","smtp-mail.outlook.com","outlook.office365.com","imap.yandex.ru"]},
     {
       "package_name": ["com.farlightgames.igame.gp",
         "com.microsoft.office.outlook"]
