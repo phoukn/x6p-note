@@ -389,7 +389,7 @@ jobs:
             name=$(basename "$txt" _domains.txt)
             echo "正在编译 $name ..."
             rm -f "surfing/${name}.mrs"
-            mihomo convert-ruleset domain text "\( txt" "surfing/ \){name}.mrs"
+            mihomo convert-ruleset domain text "$txt" "surfing/${name}.mrs"
             test -s "surfing/${name}.mrs"
             rm -f "$txt"
             echo "✅ 成功生成: surfing/${name}.mrs"
