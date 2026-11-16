@@ -431,7 +431,7 @@ jobs:
                   print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
                   next
                 }
-                if (type !\~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
+                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
                   exit 1
                 }
@@ -464,7 +464,7 @@ jobs:
           # hosts 严格检查
           if grep -q '^hosts/host$' /tmp/all_to_check.txt 2>/dev/null; then
             awk '!/^[[:space:]]*(#|$)/ {
-              if (NF < 2 || $1 !\~ /^(#|([0-9a-fA-F:.]+))$/) {
+              if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {
                 print "::error line=" NR "::hosts 格式异常"
                 exit 1
               }
