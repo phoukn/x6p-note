@@ -1,170 +1,518 @@
-name: Auto Merge and Optimize China IP List
+name: Auto Update China IP Rules
 
 on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: ipcn-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Download and Process
+      # ============================================================
+      # 工具安装：从 Release 资产列表精确选择 Linux AMD64 文件
+      # ============================================================
+      - name: Install mihomo and sing-box
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          set -e
+          set -Eeuo pipefail
 
-          # 下载源
-          curl -fLsS --retry 3 -o v4_1.txt "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt"
-          curl -fLsS --retry 3 -o v4_2.txt "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/ChinaMax/ChinaMax_IP_No_IPv6.txt"
-          curl -fLsS --retry 3 -o v6_1.txt "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute_v6.txt"
-          curl -fLsS --retry 3 -o v6_2.txt "https://github.com/X-Shelby/geoip/releases/download/latest/cn_v6.txt"
+          sudo apt-get update
+          sudo apt-get install -y jq
 
-          # 你指定的两个源
-          curl -fLsS --retry 3 -o v4_extra.txt "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/china_ip_v4.txt" || true
-          curl -fLsS --retry 3 -o v6_extra.txt "https://ispip.clang.cn/all_cn_ipv6.txt" || true
+          echo "::group::获取 mihomo 最新版本"
+          gh release view --repo MetaCubeX/mihomo \
+            --json tagName,assets > "$RUNNER_TEMP/mihomo-release.json"
 
-          python3 -c '
-          import ipaddress, os, json
+          MIHOMO_VER=$(jq -er '.tagName' "$RUNNER_TEMP/mihomo-release.json")
+          MIHOMO_ASSET=$(jq -er '
+            [.assets[].name
+              | select(test("^mihomo-linux-amd64-compatible-.*\\.gz$"))]
+            | first // empty
+          ' "$RUNNER_TEMP/mihomo-release.json")
 
-          def load_nets(files, version):
-              nets = []
-              for f in files:
-                  if not os.path.exists(f):
+          echo "mihomo version: ${MIHOMO_VER}"
+          echo "mihomo asset: ${MIHOMO_ASSET}"
+          echo "::endgroup::"
+
+          rm -f mihomo.gz mihomo
+          gh release download --repo MetaCubeX/mihomo \
+            --pattern "$MIHOMO_ASSET" \
+            --output mihomo.gz
+
+          gzip -t mihomo.gz
+          gzip -dc mihomo.gz > mihomo
+          chmod +x mihomo
+          ./mihomo -v
+
+          echo "::group::获取 sing-box 最新版本"
+          gh release view --repo SagerNet/sing-box \
+            --json tagName,assets > "$RUNNER_TEMP/sing-box-release.json"
+
+          SB_VER=$(jq -er '.tagName' "$RUNNER_TEMP/sing-box-release.json")
+          SB_TAG="${SB_VER#v}"
+          SB_ASSET=$(jq -er --arg tag "$SB_TAG" '
+            [.assets[].name
+              | select(. == ("sing-box-" + $tag + "-linux-amd64.tar.gz"))]
+            | first // empty
+          ' "$RUNNER_TEMP/sing-box-release.json")
+
+          echo "sing-box version: ${SB_VER}"
+          echo "sing-box asset: ${SB_ASSET}"
+          echo "::endgroup::"
+
+          rm -f sing-box.tar.gz
+          gh release download --repo SagerNet/sing-box \
+            --pattern "$SB_ASSET" \
+            --output sing-box.tar.gz
+
+          tar -tzf sing-box.tar.gz >/dev/null
+          SB_EXTRACT="$RUNNER_TEMP/sing-box-extract"
+          rm -rf "$SB_EXTRACT"
+          mkdir -p "$SB_EXTRACT"
+          tar -xzf sing-box.tar.gz -C "$SB_EXTRACT"
+
+          SB_BIN=$(find "$SB_EXTRACT" -type f -name sing-box -print -quit)
+          if [[ -z "$SB_BIN" ]]; then
+            echo "::error::sing-box 压缩包中没有找到可执行文件"
+            exit 1
+          fi
+
+          install -m 0755 "$SB_BIN" "$RUNNER_TEMP/sing-box"
+          "$RUNNER_TEMP/sing-box" version
+
+      # ============================================================
+      # 下载数据源：4 个必需源 + 2 个可选源
+      # ============================================================
+      - name: Download IP sources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          download_required() {
+            local url="$1"
+            local output="$2"
+
+            echo "::group::下载必需数据源: ${output}"
+            rm -f "$output"
+
+            if ! curl -fLsS \
+              --connect-timeout 20 \
+              --max-time 180 \
+              --retry 3 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "$url" -o "$output"; then
+              echo "::error::必需数据源下载失败: ${url}"
+              exit 1
+            fi
+
+            if [[ ! -s "$output" ]]; then
+              echo "::error::必需数据源为空: ${output}"
+              exit 1
+            fi
+
+            echo "下载完成: $(wc -l < "$output") 行"
+            echo "::endgroup::"
+          }
+
+          download_optional() {
+            local url="$1"
+            local output="$2"
+
+            echo "::group::下载可选数据源: ${output}"
+            rm -f "$output"
+
+            if curl -fLsS \
+              --connect-timeout 20 \
+              --max-time 180 \
+              --retry 2 \
+              --retry-delay 2 \
+              --retry-all-errors \
+              "$url" -o "$output" && [[ -s "$output" ]]; then
+              echo "可选数据源下载成功: $(wc -l < "$output") 行"
+            else
+              rm -f "$output"
+              echo "::warning::可选数据源不可用，跳过: ${url}"
+            fi
+
+            echo "::endgroup::"
+          }
+
+          # IPv4 必需源
+          download_required \
+            "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt" \
+            v4_1.txt
+
+          download_required \
+            "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/ChinaMax/ChinaMax_IP_No_IPv6.txt" \
+            v4_2.txt
+
+          # IPv6 必需源
+          download_required \
+            "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute_v6.txt" \
+            v6_1.txt
+
+          download_required \
+            "https://github.com/X-Shelby/geoip/releases/download/latest/cn_v6.txt" \
+            v6_2.txt
+
+          # 额外源：可选
+          download_optional \
+            "https://raw.githubusercontent.com/phoukn/x6p-note/refs/heads/main/surfing/china_ip_v4.txt" \
+            v4_extra.txt
+
+          download_optional \
+            "https://ispip.clang.cn/all_cn_ipv6.txt" \
+            v6_extra.txt
+
+      # ============================================================
+      # 解析、校验、去重、CIDR 聚合，并生成 TXT / YAML / JSON
+      # ============================================================
+      - name: Merge and generate source rules
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          mkdir -p surfing sing-box
+
+          python3 <<'PY'
+          import ipaddress
+          import json
+          import os
+          import re
+          import sys
+
+          SOURCES = {
+              4: [
+                  ("v4_1.txt", True),
+                  ("v4_2.txt", True),
+                  ("v4_extra.txt", False),
+              ],
+              6: [
+                  ("v6_1.txt", True),
+                  ("v6_2.txt", True),
+                  ("v6_extra.txt", False),
+              ],
+          }
+
+          def parse_source(path, version):
+              networks = []
+              invalid = 0
+
+              with open(path, "r", encoding="utf-8-sig", errors="replace") as src:
+                  for raw in src:
+                      line = raw.strip()
+
+                      if not line or line.startswith(("#", ";", "//")):
+                          continue
+
+                      if line.lower() == "payload:":
+                          continue
+
+                      # 支持 YAML payload、Clash IP-CIDR/IP-CIDR6 和纯 CIDR。
+                      line = re.sub(r"^\s*-\s*", "", line)
+                      line = line.strip().strip("'\"")
+
+                      upper = line.upper()
+                      if upper.startswith(("IP-CIDR,", "IP-CIDR6,")):
+                          parts = line.split(",")
+                          if len(parts) < 2:
+                              invalid += 1
+                              continue
+                          candidate = parts[1].strip()
+                      else:
+                          candidate = line.split(",", 1)[0].strip()
+                          candidate = candidate.split()[0] if candidate else ""
+
+                      candidate = candidate.strip("'\"").rstrip(",")
+                      if not candidate:
+                          continue
+
+                      try:
+                          network = ipaddress.ip_network(candidate, strict=False)
+                      except ValueError:
+                          invalid += 1
+                          continue
+
+                      if network.version == version:
+                          networks.append(network)
+
+              unique = set(networks)
+              print(
+                  f"  {path}: 有效 IPv{version} {len(unique)} 条"
+                  f"，忽略无效行 {invalid} 条"
+              )
+              return unique
+
+          def load_family(version, source_list):
+              merged = set()
+
+              for path, required in source_list:
+                  if not os.path.isfile(path):
+                      if required:
+                          raise RuntimeError(f"缺少必需数据源: {path}")
+                      print(f"⚠️ 可选数据源不存在，跳过: {path}")
                       continue
-                  with open(f, "r", encoding="utf-8", errors="ignore") as src:
-                      for line in src:
-                          line = line.strip()
-                          if not line or line.startswith(("#", ";", "//")):
-                              continue
-                          upper = line.upper()
-                          if upper.startswith("IP-CIDR,"):
-                              line = line.split(",", 1)[1].strip()
-                          elif upper.startswith("IP-CIDR6,"):
-                              line = line.split(",", 1)[1].strip()
-                          if "/" not in line:
-                              continue
-                          try:
-                              net = ipaddress.ip_network(line, strict=False)
-                              if net.version == version:
-                                  nets.append(net)
-                          except Exception:
-                              continue
-              return list(ipaddress.collapse_addresses(nets))
 
-          def write_pure_txt(nets, path):
-              with open(path, "w", encoding="utf-8") as f:
-                  for n in nets:
-                      f.write(str(n) + "\n")
+                  parsed = parse_source(path, version)
 
-          def write_payload_yaml(nets, path):
-              with open(path, "w", encoding="utf-8") as f:
-                  f.write("payload:\n")
-                  for n in nets:
-                      f.write(f"  - '\''{n}'\''\n")
+                  if required and not parsed:
+                      raise RuntimeError(
+                          f"必需数据源 {path} 未解析到有效 IPv{version} CIDR"
+                      )
 
-          def write_singbox_json(nets, path):
-              # sing-box rule-set source format
+                  merged.update(parsed)
+
+              if not merged:
+                  raise RuntimeError(f"IPv{version} 合并结果为空，拒绝生成文件")
+
+              collapsed = list(ipaddress.collapse_addresses(merged))
+              collapsed.sort(key=lambda n: (int(n.network_address), n.prefixlen))
+
+              print(
+                  f"IPv{version}: 合并去重后 {len(merged)} 条，"
+                  f"CIDR 聚合后 {len(collapsed)} 条"
+              )
+              return collapsed
+
+          def write_txt(networks, path):
+              with open(path, "w", encoding="utf-8", newline="\n") as dst:
+                  for network in networks:
+                      dst.write(f"{network}\n")
+
+          def write_yaml(networks, path):
+              with open(path, "w", encoding="utf-8", newline="\n") as dst:
+                  dst.write("payload:\n")
+                  for network in networks:
+                      dst.write(f"  - '{network}'\n")
+
+          def write_singbox_json(networks, path):
               data = {
                   "version": 3,
                   "rules": [
-                      {
-                          "ip_cidr": [str(n) for n in nets]
-                      }
-                  ]
+                      {"ip_cidr": [str(network) for network in networks]}
+                  ],
               }
-              with open(path, "w", encoding="utf-8") as f:
-                  json.dump(data, f, ensure_ascii=False, indent=2)
-                  f.write("\n")
+              with open(path, "w", encoding="utf-8", newline="\n") as dst:
+                  json.dump(data, dst, ensure_ascii=False, indent=2)
+                  dst.write("\n")
 
           os.makedirs("surfing", exist_ok=True)
           os.makedirs("sing-box", exist_ok=True)
 
-          v4 = load_nets(["v4_1.txt", "v4_2.txt", "v4_extra.txt"], 4)
-          v6 = load_nets(["v6_1.txt", "v6_2.txt", "v6_extra.txt"], 6)
+          v4 = load_family(4, SOURCES[4])
+          v6 = load_family(6, SOURCES[6])
 
-          # mihomo / 通用
-          write_pure_txt(v4, "surfing/china_ip_v4.txt")
-          write_payload_yaml(v4, "surfing/china_ip_v4.yaml")
-          write_pure_txt(v6, "surfing/china_ip_v6.txt")
-          write_payload_yaml(v6, "surfing/china_ip_v6.yaml")
+          outputs = [
+              (v4, "surfing/china_ip_v4.txt", "surfing/china_ip_v4.yaml",
+               "sing-box/china_ip_v4.json"),
+              (v6, "surfing/china_ip_v6.txt", "surfing/china_ip_v6.yaml",
+               "sing-box/china_ip_v6.json"),
+          ]
 
-          # sing-box json
-          write_singbox_json(v4, "sing-box/china_ip_v4.json")
-          write_singbox_json(v6, "sing-box/china_ip_v6.json")
+          for networks, txt_path, yaml_path, json_path in outputs:
+              write_txt(networks, txt_path)
+              write_yaml(networks, yaml_path)
+              write_singbox_json(networks, json_path)
 
-          print(f"IPv4: {len(v4)}  IPv6: {len(v6)}")
-          '
+          print("✅ IPv4 / IPv6 数据处理及六种源文件生成完成")
+          PY
 
-          rm -f v4_*.txt v6_*.txt
-
-      - name: Install mihomo & convert to MRS
+      # ============================================================
+      # 编译 Mihomo MRS 和 sing-box SRS
+      # ============================================================
+      - name: Compile Mihomo MRS
+        shell: bash
         run: |
-          set -e
-          VER=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-          echo "mihomo version: $VER"
-          curl -fLsS -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${VER}/mihomo-linux-amd64-${VER}.gz"
-          gunzip -f mihomo.gz
-          chmod +x mihomo
+          set -Eeuo pipefail
 
-          ./mihomo convert-ruleset ipcidr yaml surfing/china_ip_v4.yaml surfing/china_ip_v4.mrs
-          ./mihomo convert-ruleset ipcidr yaml surfing/china_ip_v6.yaml surfing/china_ip_v6.mrs
-          ls -lh surfing/china_ip_v4.* surfing/china_ip_v6.*
+          echo "::group::编译 Mihomo IPv4 MRS"
+          rm -f surfing/china_ip_v4.mrs
+          ./mihomo convert-ruleset ipcidr yaml \
+            surfing/china_ip_v4.yaml \
+            surfing/china_ip_v4.mrs
+          test -s surfing/china_ip_v4.mrs
+          echo "IPv4 MRS: $(du -h surfing/china_ip_v4.mrs | cut -f1)"
+          echo "::endgroup::"
 
-      - name: Install sing-box & convert to SRS
+          echo "::group::编译 Mihomo IPv6 MRS"
+          rm -f surfing/china_ip_v6.mrs
+          ./mihomo convert-ruleset ipcidr yaml \
+            surfing/china_ip_v6.yaml \
+            surfing/china_ip_v6.mrs
+          test -s surfing/china_ip_v6.mrs
+          echo "IPv6 MRS: $(du -h surfing/china_ip_v6.mrs | cut -f1)"
+          echo "::endgroup::"
+
+      - name: Compile sing-box SRS
+        shell: bash
         run: |
-          set -e
-          # 下载最新 sing-box
-          SB_VER=$(curl -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-          echo "sing-box version: $SB_VER"
-          # 去掉可能的 v 前缀用于文件名匹配
-          SB_TAG="${SB_VER#v}"
+          set -Eeuo pipefail
 
-          # 从 release 里抓 linux-amd64 tar.gz
-          DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest \
-            | grep -oP '"browser_download_url": "\K[^"]+sing-box-[^"]+-linux-amd64\.tar\.gz' \
-            | head -n1)
-          echo "Download: $DOWNLOAD_URL"
-          curl -fLsS -o sing-box.tar.gz "$DOWNLOAD_URL"
-          tar -xzf sing-box.tar.gz
-          # 解压后目录名通常是 sing-box-<ver>-linux-amd64
-          SB_BIN=$(find . -type f -name sing-box -path "*/sing-box-*-linux-amd64/*" | head -n1)
-          chmod +x "$SB_BIN"
-          "$SB_BIN" version
+          SB_BIN="$RUNNER_TEMP/sing-box"
 
-          # 编译 json -> srs
-          "$SB_BIN" rule-set compile --output sing-box/china_ip_v4.srs sing-box/china_ip_v4.json
-          "$SB_BIN" rule-set compile --output sing-box/china_ip_v6.srs sing-box/china_ip_v6.json
+          echo "::group::编译 sing-box IPv4 SRS"
+          rm -f sing-box/china_ip_v4.srs
+          "$SB_BIN" rule-set compile \
+            sing-box/china_ip_v4.json \
+            -o sing-box/china_ip_v4.srs
+          test -s sing-box/china_ip_v4.srs
+          echo "IPv4 SRS: $(du -h sing-box/china_ip_v4.srs | cut -f1)"
+          echo "::endgroup::"
 
-          ls -lh sing-box/china_ip_v4.* sing-box/china_ip_v6.*
+          echo "::group::编译 sing-box IPv6 SRS"
+          rm -f sing-box/china_ip_v6.srs
+          "$SB_BIN" rule-set compile \
+            sing-box/china_ip_v6.json \
+            -o sing-box/china_ip_v6.srs
+          test -s sing-box/china_ip_v6.srs
+          echo "IPv6 SRS: $(du -h sing-box/china_ip_v6.srs | cut -f1)"
+          echo "::endgroup::"
 
-      - name: Commit and Push
-        if: always()
+      # ============================================================
+      # 最终检查：文件存在、非空、JSON 可解析、CIDR 数量正确
+      # ============================================================
+      - name: Validate all generated files
+        shell: bash
         run: |
-          set -e
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          set -Eeuo pipefail
 
-          git add \
+          python3 <<'PY'
+          import ipaddress
+          import json
+          from pathlib import Path
+
+          expected = {
+              4: ("surfing/china_ip_v4.txt", "surfing/china_ip_v4.yaml",
+                  "sing-box/china_ip_v4.json"),
+              6: ("surfing/china_ip_v6.txt", "surfing/china_ip_v6.yaml",
+                  "sing-box/china_ip_v6.json"),
+          }
+
+          for version, paths in expected.items():
+              txt_path, yaml_path, json_path = map(Path, paths)
+
+              for path in paths:
+                  file = Path(path)
+                  if not file.is_file() or file.stat().st_size == 0:
+                      raise SystemExit(f"❌ 文件缺失或为空: {path}")
+
+              networks = []
+              for line in txt_path.read_text(encoding="utf-8").splitlines():
+                  network = ipaddress.ip_network(line.strip(), strict=True)
+                  if network.version != version:
+                      raise SystemExit(f"❌ 地址族错误: {line}")
+                  networks.append(network)
+
+              if not networks:
+                  raise SystemExit(f"❌ IPv{version} TXT 没有 CIDR")
+
+              data = json.loads(json_path.read_text(encoding="utf-8"))
+              if data.get("version") != 3 or not isinstance(data.get("rules"), list):
+                  raise SystemExit(f"❌ sing-box JSON 结构错误: {json_path}")
+
+              rules = data["rules"]
+              if len(rules) != 1 or not isinstance(rules[0].get("ip_cidr"), list):
+                  raise SystemExit(f"❌ sing-box ip_cidr 结构错误: {json_path}")
+
+              json_networks = [
+                  ipaddress.ip_network(item, strict=True)
+                  for item in rules[0]["ip_cidr"]
+              ]
+
+              if len(json_networks) != len(networks):
+                  raise SystemExit(f"❌ TXT 与 JSON CIDR 数量不一致: IPv{version}")
+
+              if any(item.version != version for item in json_networks):
+                  raise SystemExit(f"❌ JSON 中混入错误地址族: IPv{version}")
+
+              yaml_lines = yaml_path.read_text(encoding="utf-8").splitlines()
+              yaml_entries = [
+                  line for line in yaml_lines
+                  if line.strip().startswith("- ")
+              ]
+              if len(yaml_entries) != len(networks):
+                  raise SystemExit(f"❌ YAML 与 TXT CIDR 数量不一致: IPv{version}")
+
+              print(f"✅ IPv{version}: {len(networks)} 条 CIDR，TXT/YAML/JSON 一致")
+
+          binaries = [
+              "surfing/china_ip_v4.mrs",
+              "surfing/china_ip_v6.mrs",
+              "sing-box/china_ip_v4.srs",
+              "sing-box/china_ip_v6.srs",
+          ]
+
+          for name in binaries:
+              path = Path(name)
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"❌ 二进制规则文件缺失或为空: {name}")
+              print(f"✅ {name}: {path.stat().st_size:,} bytes")
+
+          print("🎉 所有输出文件校验通过")
+          PY
+
+          echo "::group::最终文件清单"
+          ls -lh \
             surfing/china_ip_v4.txt surfing/china_ip_v4.yaml surfing/china_ip_v4.mrs \
             surfing/china_ip_v6.txt surfing/china_ip_v6.yaml surfing/china_ip_v6.mrs \
             sing-box/china_ip_v4.json sing-box/china_ip_v4.srs \
-            sing-box/china_ip_v6.json sing-box/china_ip_v6.srs || true
+            sing-box/china_ip_v6.json sing-box/china_ip_v6.srs
+          echo "::endgroup::"
 
-          if git diff --staged --quiet; then
-            echo "💤 无变化"
+      # ============================================================
+      # 仅在全部构建与验证成功后提交
+      # ============================================================
+      - name: Commit and Push
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config --local user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add \
+            surfing/china_ip_v4.txt \
+            surfing/china_ip_v4.yaml \
+            surfing/china_ip_v4.mrs \
+            surfing/china_ip_v6.txt \
+            surfing/china_ip_v6.yaml \
+            surfing/china_ip_v6.mrs \
+            sing-box/china_ip_v4.json \
+            sing-box/china_ip_v4.srs \
+            sing-box/china_ip_v6.json \
+            sing-box/china_ip_v6.srs
+
+          if git diff --cached --quiet; then
+            echo "💤 生成结果没有变化，跳过提交"
             exit 0
           fi
 
-          git commit -m "🤖 auto-update: China IP (mihomo mrs + sing-box srs)"
+          git diff --cached --check
+          git commit -m "🤖 auto-update: China IP rules (Mihomo + sing-box)"
 
-          # 先拉远程再推，避免 rejected
-          git pull --rebase origin main
-          git push origin main
+          # 在推送前同步远程分支，避免普通的非快进推送失败。
+          git fetch origin "$GITHUB_REF_NAME"
+          git rebase "origin/$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
 
-          echo "🎉 已更新并推送"
+          echo "🎉 IP 规则更新并推送成功"

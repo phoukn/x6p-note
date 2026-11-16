@@ -31,46 +31,26 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed.txt || touch changed.txt
           fi
 
-      # ==================== 工具与内核安装 ====================
-      - name: Cache proxy cores
-        id: cache-cores
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/bin/mihomo
-            /usr/local/bin/sing-box
-          key: cores-${{ runner.os }}-v1
-
+      # ==================== 工具与内核安装（永远最新） ====================
       - name: Install tools & cores
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -Eeuo pipefail
           sudo apt-get update
           sudo apt-get install -y shellcheck jq python3-pip gzip tar
           pip install flake8 yamllint --break-system-packages
           npm install -g markdownlint-cli
 
-          # 如果缓存命中，直接跳过下载
-          if [ -x /usr/local/bin/mihomo ] && [ -x /usr/local/bin/sing-box ]; then
-            echo "✅ 使用缓存的 mihomo 和 sing-box"
-            mihomo -v || true
-            sing-box version || true
-            exit 0
-          fi
-
-          echo "=== 下载 Mihomo ==="
-          gh release download --repo MetaCubeX/mihomo \
-            --pattern "*linux-amd64-compatible*.gz" \
-            --output mihomo.gz
+          echo "=== 下载最新 Mihomo ==="
+          gh release download --repo MetaCubeX/mihomo --pattern "*linux-amd64-compatible*.gz" --output mihomo.gz
           gunzip -f mihomo.gz
           chmod +x mihomo
           sudo mv mihomo /usr/local/bin/
           mihomo -v
 
-          echo "=== 下载 Sing-box ==="
-          gh release download --repo SagerNet/sing-box \
-            --pattern "sing-box-*-linux-amd64.tar.gz" \
-            --output sing-box.tar.gz
+          echo "=== 下载最新 Sing-box ==="
+          gh release download --repo SagerNet/sing-box --pattern "sing-box-*-linux-amd64.tar.gz" --output sing-box.tar.gz
           tar -xzf sing-box.tar.gz --strip-components=1 -C /tmp
           sudo mv /tmp/sing-box /usr/local/bin/
           sing-box version
@@ -79,50 +59,72 @@ jobs:
       # ==================== 规则拉取与转换 ====================
       - name: Fetch upstream (AWAvenue-Ads)
         run: |
+          set -Eeuo pipefail
           echo "🔄 抓取 AWAvenue 去广告规则..."
-          curl -fsSL -o sing-box/AWAvenue-Ads-Rule-Singbox.json \
-            "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json" || true
+          if curl -fsSL --retry 3 --retry-delay 2 -o sing-box/AWAvenue-Ads-Rule-Singbox.json.tmp "https://raw.githubusercontent.com/TG-Twilight/AWAvenue-Ads-Rule/main/Filters/AWAvenue-Ads-Rule-Singbox.json"; then
+            mv -f sing-box/AWAvenue-Ads-Rule-Singbox.json.tmp sing-box/AWAvenue-Ads-Rule-Singbox.json
+            echo "✅ AWAvenue 下载成功（使用新数据）"
+          else
+            echo "::warning::AWAvenue 下载失败，将继续使用仓库中已有文件（如果存在）"
+            rm -f sing-box/AWAvenue-Ads-Rule-Singbox.json.tmp
+          fi
 
       - name: Fetch & Convert 10007 Hosts
         run: |
+          set -Eeuo pipefail
           python3 << 'EOF'
-          import urllib.request, json, re
+          import urllib.request, json, re, sys
+
           url = "https://raw.githubusercontent.com/lingeringsound/10007/main/all"
           try:
               req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-              content = urllib.request.urlopen(req).read().decode("utf-8")
-          except Exception:
-              exit(1)
-              
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  if resp.status != 200:
+                      raise RuntimeError(f"HTTP {resp.status}")
+                  content = resp.read().decode("utf-8")
+          except Exception as e:
+              print(f"::error::10007 下载失败: {e}")
+              sys.exit(1)
+
           domains = set()
           for line in content.splitlines():
               line = line.strip()
-              if not line or line.startswith("#"): continue
+              if not line or line.startswith("#"):
+                  continue
               parts = line.split()
               if len(parts) >= 2 and parts[0] == "0.0.0.0":
                   domain = parts[1].lower()
                   if domain not in ("localhost", "localhost.localdomain", "broadcasthost"):
                       if re.match(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$", domain):
                           domains.add(domain)
-          domains = sorted(list(domains))
-          
+
+          domains = sorted(domains)
+          if not domains:
+              print("::error::10007 解析后没有有效域名")
+              sys.exit(1)
+
           with open("sing-box/adblock_10007.json", "w", encoding="utf-8") as f:
-              json.dump({"version": 3, "rules":[{"domain_suffix": domains}]}, f, indent=2, ensure_ascii=False)
+              json.dump({"version": 3, "rules": [{"domain_suffix": domains}]}, f, indent=2, ensure_ascii=False)
+
           with open("surfing/adblock_10007.yaml", "w", encoding="utf-8") as f:
-              f.write("payload:\n" + "\n".join([f"  - DOMAIN-SUFFIX,{d}" for d in domains]) + "\n")
+              f.write("payload:\n" + "\n".join(f"  - DOMAIN-SUFFIX,{d}" for d in domains) + "\n")
+
           with open("surfing/adblock_10007_domains.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(domains) + "\n")
+
+          print(f"✅ 10007 处理完成，共 {len(domains)} 条")
           EOF
 
       - name: Fetch & Convert Remote Rules (Bidirectional Sync)
         run: |
+          set -Eeuo pipefail
           python3 << 'EOF'
-          import urllib.request, json
-          
+          import urllib.request, json, os, sys
+
           tasks = {
               "cn-additional-list": {
                   "url": "https://static-file-global.353355.xyz/rules/cn-additional-list-clash-classical.yaml",
-                  "mrs": True 
+                  "mrs": True
               },
               "anti-ip-attribution": {
                   "url": "https://raw.githubusercontent.com/SunsetMkt/anti-ip-attribution/main/generated/rule-provider-proxy.yaml",
@@ -131,9 +133,9 @@ jobs:
           }
 
           s2c_map = {
-              "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
+              "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD",
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
-              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME", 
+              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME",
               "package_name": "PROCESS-NAME", "process_path": "PROCESS-PATH",
               "geoip": "GEOIP", "geosite": "GEOSITE", "ip_asn": "IP-ASN"
           }
@@ -142,116 +144,132 @@ jobs:
           c2s_map["IP-CIDR6"] = "ip_cidr"
 
           for name, config in tasks.items():
-              url, compile_mrs = config["url"], config["mrs"]
+              url = config["url"]
+              compile_mrs = config["mrs"]
               print(f"📥 正在下载 {name}...")
+
+              content = None
               try:
                   req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                  content = urllib.request.urlopen(req).read().decode("utf-8")
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      if resp.status != 200:
+                          raise RuntimeError(f"HTTP {resp.status}")
+                      content = resp.read().decode("utf-8")
+                  if len(content) < 50:
+                      raise RuntimeError("内容过短，可能无效")
+                  print(f"✅ {name} 下载成功（使用新数据）")
               except Exception as e:
-                  print(f"下载失败: {e}\n")
-                  continue
+                  print(f"::warning::{name} 下载失败: {e}")
+                  # 本地已有文件则继续使用旧数据，否则跳过
+                  if os.path.exists(f"sing-box/{name}.json") or os.path.exists(f"surfing/{name}.yaml"):
+                      print(f"⚠️ 将继续使用仓库中已有的 {name} 文件")
+                      continue
+                  else:
+                      print(f"::error::{name} 本地也无旧文件，跳过此规则")
+                      continue
 
               is_json = False
               try:
                   parsed_json = json.loads(content)
-                  if "rules" in parsed_json: is_json = True
-              except: pass
+                  if "rules" in parsed_json:
+                      is_json = True
+              except Exception:
+                  pass
 
               domain_for_mrs = set()
 
               if is_json:
                   with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
                       json.dump(parsed_json, f, indent=2, ensure_ascii=False)
-                  
+
                   clash_rules = []
                   for rule in parsed_json.get("rules", []):
                       for s_key, c_key_default in s2c_map.items():
                           if s_key in rule:
                               items = rule[s_key]
-                              if isinstance(items, str): items = [items]
+                              if isinstance(items, str):
+                                  items = [items]
                               for item in items:
                                   item_str = str(item)
                                   c_key = c_key_default
-                                  
                                   if s_key in ("ip_cidr", "source_ip_cidr"):
                                       if "/" not in item_str:
                                           item_str += "/128" if ":" in item_str else "/32"
                                       if s_key == "ip_cidr" and ":" in item_str:
                                           c_key = "IP-CIDR6"
-                                          
                                   clash_rules.append(f"  - {c_key},{item_str}")
                                   if compile_mrs and c_key in ("DOMAIN", "DOMAIN-SUFFIX"):
                                       domain_for_mrs.add(item_str)
-                                      
+
                   with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
                       f.write("payload:\n" + "\n".join(clash_rules) + "\n")
               else:
                   with open(f"surfing/{name}.yaml", "w", encoding="utf-8") as f:
                       f.write(content)
 
-                  rules_map = {k: [] for k in c2s_map.keys()}
+                  rules_map = {k: [] for k in c2s_map}
                   for line in content.splitlines():
                       line = line.strip()
-                      if not line or line.startswith("#") or line == "payload:": continue
-                      if line.startswith("- "): line = line[2:]
-                      rule = line.strip().strip("\x27").strip("\x22")
-
+                      if not line or line.startswith("#") or line == "payload:":
+                          continue
+                      if line.startswith("- "):
+                          line = line[2:]
+                      rule = line.strip().strip("'\"")
                       parts = [p.strip() for p in rule.split(",")]
                       if len(parts) >= 2:
                           rtype, payload = parts[0].upper(), parts[1]
-                          if rtype in rules_map: rules_map[rtype].append(payload)
+                          if rtype in rules_map:
+                              rules_map[rtype].append(payload)
                           if compile_mrs and rtype in ("DOMAIN", "DOMAIN-SUFFIX"):
                               domain_for_mrs.add(payload)
 
                   singbox_rule = {}
                   for c_type, s_type in c2s_map.items():
                       if rules_map.get(c_type):
-                          if s_type not in singbox_rule: singbox_rule[s_type] = []
-                          singbox_rule[s_type].extend(rules_map[c_type])
+                          singbox_rule.setdefault(s_type, []).extend(rules_map[c_type])
 
-                  for k in singbox_rule: singbox_rule[k] = sorted(list(set(singbox_rule[k])))
+                  for k in singbox_rule:
+                      singbox_rule[k] = sorted(set(singbox_rule[k]))
+
                   singbox_json = {"version": 3, "rules": [singbox_rule] if singbox_rule else []}
-                  
                   with open(f"sing-box/{name}.json", "w", encoding="utf-8") as f:
                       json.dump(singbox_json, f, indent=2, ensure_ascii=False)
 
               if compile_mrs and domain_for_mrs:
-                  domains = sorted(list(domain_for_mrs))
+                  domains = sorted(domain_for_mrs)
                   with open(f"surfing/{name}_domains.txt", "w", encoding="utf-8") as f:
                       f.write("\n".join(domains) + "\n")
+                  print(f"✅ {name} 提取 {len(domains)} 个域名准备编译 MRS")
           EOF
 
       - name: Convert accelerated-domains.china (Sing-box JSON → YAML + MRS)
         run: |
-          set -euo pipefail   # ← 新增：Python/curl/mihomo 任一失败立即停，避免带着空文件继续编译
+          set -Eeuo pipefail
           echo "🔄 转换 accelerated-domains.china ..."
           mkdir -p surfing
-      
-          # 使用 raw.githubusercontent.com（更稳定）
-          curl -fsSL --retry 3 --retry-delay 2 \
-            -o /tmp/accelerated-domains.china.json \
-            "https://raw.githubusercontent.com/Dreista/sing-box-rule-set-cn/rule-set/accelerated-domains.china.conf.json"
-      
-          # 检查文件是否有效
+
+          curl -fsSL --retry 3 --retry-delay 2 -o /tmp/accelerated-domains.china.json "https://raw.githubusercontent.com/Dreista/sing-box-rule-set-cn/rule-set/accelerated-domains.china.conf.json"
+
           if [ ! -s /tmp/accelerated-domains.china.json ] || [ "$(stat -c%s /tmp/accelerated-domains.china.json)" -lt 10000 ]; then
             echo "❌ 下载失败或文件过小"
             head -c 300 /tmp/accelerated-domains.china.json || true
             exit 1
           fi
-      
+
           python3 << 'EOF'
-          import json
-      
+          import json, sys
+
           with open("/tmp/accelerated-domains.china.json", "r", encoding="utf-8") as f:
               data = json.load(f)
-      
+
           rules = data.get("rules")
           if not rules:
-              raise SystemExit("❌ 源文件没有 rules 字段，上游格式可能变了")
-      
+              print("❌ 源文件没有 rules 字段，上游格式可能变了")
+              sys.exit(1)
+
           domains = set()
           domain_suffixes = set()
-      
+
           for rule in rules:
               if "domain" in rule:
                   items = rule["domain"] if isinstance(rule["domain"], list) else [rule["domain"]]
@@ -259,43 +277,41 @@ jobs:
               if "domain_suffix" in rule:
                   items = rule["domain_suffix"] if isinstance(rule["domain_suffix"], list) else [rule["domain_suffix"]]
                   domain_suffixes.update(str(i) for i in items)
-      
+
           clash_rules = []
           for d in sorted(domains):
               clash_rules.append(f"  - DOMAIN,{d}")
           for d in sorted(domain_suffixes):
               clash_rules.append(f"  - DOMAIN-SUFFIX,{d}")
-      
+
           if not clash_rules:
-              raise SystemExit("❌ 没有从源文件提取到任何规则")
-      
+              print("❌ 没有从源文件提取到任何规则")
+              sys.exit(1)
+
           with open("surfing/accelerated-domains.china.yaml", "w", encoding="utf-8") as f:
               f.write("payload:\n" + "\n".join(clash_rules) + "\n")
-      
-          # 注意：MRS 的 domain 类型只有后缀匹配语义，DOMAIN（精确）条目
-          # 合并进 _domains.txt 编译后会被当作 DOMAIN-SUFFIX 处理，匹配范围略微放大。
-          # accelerated-domains.china 的 DOMAIN 条目通常已被 DOMAIN-SUFFIX 覆盖，影响可忽略。
+
           all_for_mrs = sorted(domains | domain_suffixes)
           if not all_for_mrs:
-              raise SystemExit("❌ 没有可编译 MRS 的域名")
-      
+              print("❌ 没有可编译 MRS 的域名")
+              sys.exit(1)
+
           with open("surfing/accelerated-domains.china_domains.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(all_for_mrs) + "\n")
-      
+
           print(f"✅ 已生成 surfing/accelerated-domains.china.yaml （共 {len(clash_rules)} 条）")
           print(f"✅ 已提取 {len(all_for_mrs)} 个域名准备编译 MRS")
           EOF
-      
-          mihomo convert-ruleset domain text \
-            surfing/accelerated-domains.china_domains.txt \
-            surfing/accelerated-domains.china.mrs
-      
-          # set -e 保证走到这里说明前面全部成功，此时才清理中间文件
+
+          mihomo convert-ruleset domain text surfing/accelerated-domains.china_domains.txt surfing/accelerated-domains.china.mrs
+
+          test -s surfing/accelerated-domains.china.mrs
           rm -f surfing/accelerated-domains.china_domains.txt /tmp/accelerated-domains.china.json
           echo "✅ 已生成 surfing/accelerated-domains.china.mrs"
-          
+
       - name: Sync Local Custom Rules (Sing-box -> Mihomo)
         run: |
+          set -Eeuo pipefail
           python3 << 'EOF'
           import json, os
 
@@ -308,9 +324,9 @@ jobs:
           }
 
           s2c_map = {
-              "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD", 
+              "domain": "DOMAIN", "domain_suffix": "DOMAIN-SUFFIX", "domain_keyword": "DOMAIN-KEYWORD",
               "domain_regex": "DOMAIN-REGEX", "ip_cidr": "IP-CIDR", "source_ip_cidr": "SRC-IP-CIDR",
-              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME", 
+              "source_port": "SRC-PORT", "port": "DST-PORT", "process_name": "PROCESS-NAME",
               "package_name": "PROCESS-NAME", "process_path": "PROCESS-PATH",
               "geoip": "GEOIP", "geosite": "GEOSITE", "ip_asn": "IP-ASN"
           }
@@ -320,9 +336,11 @@ jobs:
                   continue
 
               print(f"🔄 镜像同步本地规则: {in_path} -> {config['out']}")
-              with open(in_path, 'r', encoding='utf-8') as f:
-                  try: data = json.load(f)
-                  except: continue
+              with open(in_path, "r", encoding="utf-8") as f:
+                  try:
+                      data = json.load(f)
+                  except Exception:
+                      continue
 
               clash_rules = []
               domain_for_mrs = set()
@@ -331,31 +349,30 @@ jobs:
                   for s_key, c_key_default in s2c_map.items():
                       if s_key in rule:
                           items = rule[s_key]
-                          if isinstance(items, str) or isinstance(items, int): items = [items]
+                          if isinstance(items, (str, int)):
+                              items = [items]
                           for item in items:
                               item_str = str(item)
                               c_key = c_key_default
-                              
                               if s_key in ("ip_cidr", "source_ip_cidr"):
                                   if "/" not in item_str:
                                       item_str += "/128" if ":" in item_str else "/32"
                                   if s_key == "ip_cidr" and ":" in item_str:
                                       c_key = "IP-CIDR6"
-                                      
                               clash_rules.append(f"{c_key},{item_str}")
                               if config["mrs"] and c_key in ("DOMAIN", "DOMAIN-SUFFIX"):
                                   domain_for_mrs.add(item_str)
 
-              out_path = config['out']
-              with open(out_path, 'w', encoding='utf-8') as f:
-                  if config['fmt'] == 'yaml':
-                      f.write("payload:\n" + "\n".join([f"  - {r}" for r in clash_rules]) + "\n")
+              out_path = config["out"]
+              with open(out_path, "w", encoding="utf-8") as f:
+                  if config["fmt"] == "yaml":
+                      f.write("payload:\n" + "\n".join(f"  - {r}" for r in clash_rules) + "\n")
                   else:
                       f.write("\n".join(clash_rules) + "\n")
 
-              if config['mrs'] and domain_for_mrs:
-                  domains = sorted(list(domain_for_mrs))
-                  base_name = os.path.basename(out_path).replace('.yaml', '')
+              if config["mrs"] and domain_for_mrs:
+                  domains = sorted(domain_for_mrs)
+                  base_name = os.path.basename(out_path).replace(".yaml", "")
                   with open(f"surfing/{base_name}_domains.txt", "w", encoding="utf-8") as f:
                       f.write("\n".join(domains) + "\n")
                   print(f"✅ 提取 {len(domains)} 个域名准备编译 MRS")
@@ -364,96 +381,139 @@ jobs:
       # ==================== 编译阶段 ====================
       - name: Compile ALL Domains to Mihomo .mrs
         run: |
+          set -Eeuo pipefail
           echo "🔄 开始统一将提取的纯域名编译为 Mihomo .mrs ..."
           shopt -s nullglob
-          for txt in surfing/*_domains.txt; do
+          files=(surfing/*_domains.txt)
+          for txt in "${files[@]}"; do
             name=$(basename "$txt" _domains.txt)
             echo "正在编译 $name ..."
             rm -f "surfing/${name}.mrs"
-            mihomo convert-ruleset domain text "$txt" "surfing/${name}.mrs" || echo "::error::${name} MRS编译失败"
+            mihomo convert-ruleset domain text "\( txt" "surfing/ \){name}.mrs"
+            test -s "surfing/${name}.mrs"
             rm -f "$txt"
             echo "✅ 成功生成: surfing/${name}.mrs"
           done
 
       - name: Compile ALL Sing-box Rule-sets (.json -> .srs)
         run: |
+          set -Eeuo pipefail
           echo "🔄 扫描并编译 Sing-box 规则集..."
+          shopt -s nullglob
           for f in sing-box/*.json; do
-            [ -e "$f" ] || continue 
-            if grep -q '"version"' "$f" && grep -q '"rules"' "$f"; then
+            if jq -e '.version and (.rules | type == "array")' "$f" >/dev/null 2>&1; then
               srs_file="${f%.json}.srs"
               rm -f "$srs_file"
-              sing-box rule-set compile "$f" -o "$srs_file" || echo "::error file=$f::Sing-box 编译失败"
+              sing-box rule-set compile --output "$srs_file" "$f"
+              test -s "$srs_file"
+              echo "✅ 编译成功: $srs_file"
             else
-              sing-box check -c "$f" || echo "::warning file=$f::Sing-box 配置格式有误"
+              echo "⚠️ 非规则集 JSON，跳过编译: $f"
             fi
           done
 
       # ==================== 校验阶段 ====================
       - name: Format & Validate Mihomo Rules (.list syntax check)
         run: |
+          set -Eeuo pipefail
           echo "🔄 修复并校验 Mihomo 规则 (.list)..."
           export LC_ALL=C.UTF-8
           bad=0
+          shopt -s nullglob
           for f in surfing/*.list; do
-            [ -e "$f" ] || continue
             sed -i 's/\r$//' "$f"
             sed -i '1s/^\xEF\xBB\xBF//' "$f"
-            awk -F, -v bad_ref=0 '
-              /^[[:space:]]*(#|\/\/|;|$)/ {next} 
+            if ! awk -F, '
+              /^[[:space:]]*(#|\/\/|;|$)/ {next}
               {
                 type = toupper($1); gsub(/^[ \t]+|[ \t]+$/, "", type);
                 if (NF < 2) {
                   print "::warning file=" FILENAME ",line=" NR "::缺少逗号 -> " $0
                   next
                 }
-                if (type !~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
+                if (type !\~ /^(DOMAIN|DOMAIN-SUFFIX|DOMAIN-KEYWORD|DOMAIN-REGEX|IP-CIDR|IP-CIDR6|GEOIP|SRC-IP-CIDR|SRC-PORT|DST-PORT|PROCESS-NAME|PROCESS-PATH|IP-ASN|RULE-SET|GEOSITE)$/) {
                   print "::error file=" FILENAME ",line=" NR "::未知的规则类型 [" type "]"
-                  bad_ref=1
+                  exit 1
                 }
               }
-              END { exit bad_ref }
-            ' "$f" || bad=1
+            ' "$f"; then
+              bad=1
+            fi
           done
-          [ "$bad" -eq 0 ] || exit 1
+          [ "$bad" -eq 0 ]
 
       - name: Lint changed Markdown, Scripts, Hosts & YAML configs
         run: |
-          IFS=$'\n'
-          for f in $(grep -E '\.md$' changed.txt || true); do [ -n "$f" ] && markdownlint "$f" || true; done
-          for f in $(grep -E '\.sh$' changed.txt || true); do [ -n "$f" ] && shellcheck "$f" || true; done
-          for f in $(grep -E '\.py$' changed.txt || true); do [ -n "$f" ] && flake8 --ignore=E501 "$f" || true; done
-          for f in $(grep -E '\.js$' changed.txt || true); do [ -n "$f" ] && node --check "$f" || true; done
-          
-          if grep -q '^hosts/host$' changed.txt; then
-            awk '!/^[[:space:]]*(#|$)/ {if (NF < 2 || $1 !~ /^(#|([0-9a-fA-F:.]+))$/) {print "::error line="NR"::hosts 格式异常"; exit 1}}' "hosts/host" || exit 1
-          fi
-          
-          bad=0
-          for f in $(grep -E 'surfing/.*\.ya?ml$' changed.txt || true); do
-            [ -z "$f" ] && continue
-            yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
-            if grep -q '^payload:' "$f"; then
-              echo "✅ 跳过规则集 (payload) 的内核检查: $f"
-            else
-              mihomo -t -f "$f" || { echo "::error file=$f::Mihomo yaml语法错误"; bad=1; }
-            fi
-          done
-          [ "$bad" -eq 0 ] || exit 1
+          set -e
+          # 重新收集本次可能被修改的文件
+          find surfing sing-box -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.list" -o -name "*.json" \) 2>/dev/null > /tmp/generated.txt || true
+          cat changed.txt /tmp/generated.txt 2>/dev/null | sort -u > /tmp/all_to_check.txt || true
 
-      # ==================== 提交 ====================
+          # 可选检查（失败只警告，不阻断）
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ ! -f "$f" ] && continue
+            case "$f" in
+              *.md)  markdownlint "$f" || echo "::warning file=$f::markdownlint 发现问题" ;;
+              *.sh)  shellcheck "$f" || echo "::warning file=$f::shellcheck 发现问题" ;;
+              *.py)  flake8 --ignore=E501 "$f" || echo "::warning file=$f::flake8 发现问题" ;;
+              *.js)  node --check "$f" || echo "::warning file=$f::JS 语法问题" ;;
+            esac
+          done < /tmp/all_to_check.txt
+
+          # hosts 严格检查
+          if grep -q '^hosts/host$' /tmp/all_to_check.txt 2>/dev/null; then
+            awk '!/^[[:space:]]*(#|$)/ {
+              if (NF < 2 || $1 !\~ /^(#|([0-9a-fA-F:.]+))$/) {
+                print "::error line=" NR "::hosts 格式异常"
+                exit 1
+              }
+            }' hosts/host
+          fi
+
+          # YAML 严格检查（payload 规则集跳过内核测试）
+          bad=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            [ ! -f "$f" ] && continue
+            case "$f" in
+              surfing/*.yaml|surfing/*.yml)
+                yamllint -d "{extends: relaxed, rules: {line-length: disable}}" "$f" || true
+                if grep -q '^payload:' "$f"; then
+                  echo "✅ 跳过规则集 (payload) 的内核检查: $f"
+                else
+                  if ! mihomo -t -f "$f"; then
+                    echo "::error file=$f::Mihomo yaml语法错误"
+                    bad=1
+                  fi
+                fi
+                ;;
+            esac
+          done < /tmp/all_to_check.txt
+          [ "$bad" -eq 0 ]
+
+      # ==================== 提交（仅成功 + 定时/手动） ====================
       - name: Commit and Push
-        if: always()
+        if: success() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
+          set -Eeuo pipefail
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          git add sing-box/*.json sing-box/*.srs surfing/*.yaml surfing/*.list surfing/*.mrs || true
-          
-          if ! git diff --staged --quiet; then
-            git commit -m "🤖 auto-update: 同步本地镜像规则与远程规则分发"
-            git push
-            echo "🎉 自动编译的规则与远程订阅已更新推送！"
-          else
+
+          git add sing-box/*.json sing-box/*.srs surfing/*.yaml surfing/*.list surfing/*.mrs
+
+          if git diff --staged --quiet; then
             echo "💤 源码无变化，数据与昨日一致，跳过提交。"
+            exit 0
           fi
+
+          # 降低并发推送冲突概率
+          git fetch origin main
+          git rebase origin/main || {
+            echo "::error::rebase 失败，请手动处理冲突"
+            exit 1
+          }
+
+          git commit -m "🤖 auto-update: 同步本地镜像规则与远程规则分发"
+          git push origin main
+          echo "🎉 自动编译的规则与远程订阅已更新推送！"
