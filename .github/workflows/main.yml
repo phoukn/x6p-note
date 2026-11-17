@@ -506,7 +506,8 @@ jobs:
             echo "💤 源码无变化，数据与昨日一致，跳过提交。"
             exit 0
           fi
-
+          
+          git commit -m "🤖 auto-update: 同步本地镜像规则与远程规则分发"
           # 降低并发推送冲突概率
           git fetch origin main
           git rebase origin/main || {
@@ -514,6 +515,5 @@ jobs:
             exit 1
           }
 
-          git commit -m "🤖 auto-update: 同步本地镜像规则与远程规则分发"
           git push origin main
           echo "🎉 自动编译的规则与远程订阅已更新推送！"
