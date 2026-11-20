@@ -46,7 +46,7 @@ jobs:
           import re
           import urllib.request
 
-          HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) RuleBuilder/1.1'}
+          HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) RuleBuilder/1.2'}
 
           TRACKER_URLS = [
               # HaGeZi Threat Intelligence Feeds (Medium)
@@ -63,8 +63,8 @@ jobs:
               "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.lgwebos.txt",
               "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.roku.txt",
               "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.tiktok.txt",
-              # The Block List Project - Tracking
-              "https://blocklistproject.github.io/Lists/tracking.txt",
+              # AdGuard Tracking Protection Filter
+              "https://filters.adtidy.org/extension/ublock/filters/3.txt",
               # Sentinel Blocklists - Tracking & Telemetry
               "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/tracking.txt",
               "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/telemetry.txt",
@@ -94,14 +94,17 @@ jobs:
           def extract_from_line(line):
               # 去掉行内注释
               line = re.split(r'[#!]', line, maxsplit=1)[0].strip()
-              if not line:
+              # 跳过空行与 Adblock 白名单例外规则
+              if not line or line.startswith('@@'):
                   return
-              # 去掉 Adblock 前后缀符号
+              # 跳过带路径、通配符或修饰符的规则，避免误封整站主域
+              if any(ch in line for ch in ('/', '*', '?', '$', '~', ',')):
+                  return
+              # 去掉 Adblock 域名起止符
               line = line.removeprefix('||').split('^', maxsplit=1)[0].strip()
               parts = line.split()
               if not parts:
                   return
-              # 若是 hosts 格式 (如 0.0.0.0 example.com)，取最后一个字段
               candidate = parts[-1]
               if candidate in ('localhost', 'localhost.localdomain', 'broadcasthost', 'ip6-localhost', 'ip6-loopback'):
                   return
@@ -109,17 +112,18 @@ jobs:
 
           # 1. 拉取各文本列表源
           for url in TRACKER_URLS:
-              print(f"Fetching {url}...")
+              before = len(domains)
               try:
                   req = urllib.request.Request(url, headers=HEADERS)
                   with urllib.request.urlopen(req, timeout=35) as resp:
                       for raw_line in resp.read().decode('utf-8', errors='ignore').splitlines():
                           extract_from_line(raw_line)
+                  print(f"[OK] {url} -> +{len(domains) - before} unique domains")
               except Exception as e:
                   print(f"[WARN] Failed to fetch {url}: {e}")
 
           # 2. 拉取并解析 Exodus API 正则表达式
-          print(f"Fetching {EXODUS_API}...")
+          before_exodus = len(domains)
           try:
               req = urllib.request.Request(EXODUS_API, headers=HEADERS)
               with urllib.request.urlopen(req, timeout=45) as resp:
@@ -134,6 +138,7 @@ jobs:
                           part = part.strip('.*+?\\/ ')
                           if '.' in part:
                               add_domain(part)
+              print(f"[OK] {EXODUS_API} -> +{len(domains) - before_exodus} unique domains")
           except Exception as e:
               print(f"[WARN] Failed to fetch Exodus API: {e}")
 
@@ -168,7 +173,7 @@ jobs:
 
           # 生成 mihomo YAML (domain behavior)
           with open("trackers/privacy-trackers.yaml", "w", encoding="utf-8") as f:
-              f.write("# Privacy & Native Trackers (HaGeZi + Exodus + BlockListProject + Sentinel)\n")
+              f.write("# Privacy & Native Trackers (HaGeZi + AdGuard + Exodus + Sentinel)\n")
               f.write("payload:\n")
               for d in collapsed:
                   f.write(f"  - '+.{d}'\n")
