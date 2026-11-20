@@ -1,0 +1,194 @@
+name: Build Trackers & Privacy Rulesets
+
+on:
+  schedule:
+    # 每天北京时间 04:30 自动更新 (UTC 20:30)
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-rulesets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install sing-box and mihomo binaries
+        run: |
+          mkdir -p bin
+          # 获取最新 sing-box (amd64)
+          SB_URL=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep "browser_download_url.*linux-amd64.tar.gz" | head -n 1 | cut -d '"' -f 4)
+          curl -L "$SB_URL" -o sb.tar.gz
+          tar -xzf sb.tar.gz --strip-components=1 -C bin --wildcards '*/sing-box'
+
+          # 获取最新 mihomo (amd64)
+          MH_URL=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep "browser_download_url.*mihomo-linux-amd64-compatible-v.*.gz" | head -n 1 | cut -d '"' -f 4)
+          curl -L "$MH_URL" -o mh.gz
+          gunzip -c mh.gz > bin/mihomo
+
+          chmod +x bin/sing-box bin/mihomo
+          ./bin/sing-box version
+          ./bin/mihomo -v
+
+      - name: Fetch, Clean & Merge Domains
+        run: |
+          cat << 'EOF' > merge_rules.py
+          import json
+          import os
+          import re
+          import urllib.request
+
+          HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) RuleBuilder/1.1'}
+
+          TRACKER_URLS = [
+              # HaGeZi Threat Intelligence Feeds (Medium)
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/tif.medium.txt",
+              # HaGeZi Native Trackers (各生态基础版，防误杀)
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.xiaomi.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.oppo-realme.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.vivo.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.huawei.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.samsung.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.apple.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.winoffice.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.amazon.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.lgwebos.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.roku.txt",
+              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.tiktok.txt",
+              # The Block List Project - Tracking
+              "https://blocklistproject.github.io/Lists/tracking.txt",
+              # Sentinel Blocklists - Tracking & Telemetry
+              "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/tracking.txt",
+              "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/telemetry.txt",
+          ]
+
+          EXODUS_API = "https://reports.exodus-privacy.eu.org/api/trackers"
+
+          # 严格域名校验正则
+          DOMAIN_RE = re.compile(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,12}$')
+
+          # 防误杀基础白名单（按需增减）
+          WHITELIST = {
+              "apple.com", "icloud.com", "mzstatic.com",
+              "microsoft.com", "windows.com", "live.com", "office.com",
+              "googleapis.com", "google.com", "gstatic.com",
+              "amazonaws.com", "amazon.com", "cloudfront.net",
+              "mi.com", "xiaomi.com", "huawei.com", "oppo.com", "vivo.com", "samsung.com"
+          }
+
+          domains = set()
+
+          def add_domain(raw_d):
+              d = raw_d.strip().lower().lstrip('.').rstrip('.')
+              if DOMAIN_RE.match(d) and d not in WHITELIST:
+                  domains.add(d)
+
+          def extract_from_line(line):
+              # 去掉行内注释
+              line = re.split(r'[#!]', line, maxsplit=1)[0].strip()
+              if not line:
+                  return
+              # 去掉 Adblock 前后缀符号
+              line = line.removeprefix('||').split('^', maxsplit=1)[0].strip()
+              parts = line.split()
+              if not parts:
+                  return
+              # 若是 hosts 格式 (如 0.0.0.0 example.com)，取最后一个字段
+              candidate = parts[-1]
+              if candidate in ('localhost', 'localhost.localdomain', 'broadcasthost', 'ip6-localhost', 'ip6-loopback'):
+                  return
+              add_domain(candidate)
+
+          # 1. 拉取各文本列表源
+          for url in TRACKER_URLS:
+              print(f"Fetching {url}...")
+              try:
+                  req = urllib.request.Request(url, headers=HEADERS)
+                  with urllib.request.urlopen(req, timeout=35) as resp:
+                      for raw_line in resp.read().decode('utf-8', errors='ignore').splitlines():
+                          extract_from_line(raw_line)
+              except Exception as e:
+                  print(f"[WARN] Failed to fetch {url}: {e}")
+
+          # 2. 拉取并解析 Exodus API 正则表达式
+          print(f"Fetching {EXODUS_API}...")
+          try:
+              req = urllib.request.Request(EXODUS_API, headers=HEADERS)
+              with urllib.request.urlopen(req, timeout=45) as resp:
+                  data = json.loads(resp.read().decode('utf-8'))
+                  trackers = data.get("trackers", {})
+                  for _, info in trackers.items():
+                      net_det = info.get("network_detection", "")
+                      if not net_det:
+                          continue
+                      cleaned = net_det.replace(r'\.', '.').replace('^', '').replace('$', '')
+                      for part in re.split(r'[|()\[\]]', cleaned):
+                          part = part.strip('.*+?\\/ ')
+                          if '.' in part:
+                              add_domain(part)
+          except Exception as e:
+              print(f"[WARN] Failed to fetch Exodus API: {e}")
+
+          # 子域名折叠去重
+          sorted_domains = sorted(domains, key=lambda x: x.split('.')[::-1])
+          collapsed = []
+          for d in sorted_domains:
+              if not collapsed:
+                  collapsed.append(d)
+                  continue
+              prev = collapsed[-1]
+              if d == prev or d.endswith('.' + prev):
+                  continue
+              collapsed.append(d)
+
+          collapsed.sort()
+          print(f"Total clean collapsed domains: {len(collapsed)}")
+
+          os.makedirs("trackers", exist_ok=True)
+
+          # 生成 sing-box JSON (rule-set v2)
+          sb_json = {
+              "version": 2,
+              "rules": [
+                  {
+                      "domain_suffix": collapsed
+                  }
+              ]
+          }
+          with open("trackers/privacy-trackers.json", "w", encoding="utf-8") as f:
+              json.dump(sb_json, f, indent=2)
+
+          # 生成 mihomo YAML (domain behavior)
+          with open("trackers/privacy-trackers.yaml", "w", encoding="utf-8") as f:
+              f.write("# Privacy & Native Trackers (HaGeZi + Exodus + BlockListProject + Sentinel)\n")
+              f.write("payload:\n")
+              for d in collapsed:
+                  f.write(f"  - '+.{d}'\n")
+          EOF
+          python3 merge_rules.py
+
+      - name: Compile to .srs and .mrs
+        run: |
+          ./bin/sing-box rule-set compile trackers/privacy-trackers.json -o trackers/privacy-trackers.srs
+          ./bin/mihomo convert-ruleset domain yaml trackers/privacy-trackers.yaml trackers/privacy-trackers.mrs
+          ls -lh trackers/
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add trackers/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update privacy & trackers rulesets"
+            git push
+          fi
