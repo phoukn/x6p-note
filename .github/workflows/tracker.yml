@@ -52,7 +52,7 @@ jobs:
           # 1. 纯域名列表源（HaGeZi wildcard/*-onlydomains.txt + Sentinel Blocklists）
           PLAIN_DOMAIN_URLS = [
               # HaGeZi Threat Intelligence Feeds & Native Trackers
-              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif.medium-onlydomains.txt",
               "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.amazon-onlydomains.txt",
               "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.xiaomi-onlydomains.txt",
               "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.oppo-realme-onlydomains.txt",
