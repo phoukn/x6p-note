@@ -44,33 +44,34 @@ jobs:
           import json
           import os
           import re
+          import sys
           import urllib.request
 
-          HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) RuleBuilder/1.3'}
+          HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) RuleBuilder/2.1'}
 
-          TRACKER_URLS = [
-              # HaGeZi Threat Intelligence Feeds (Medium)
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/tif.medium.txt",
-              # HaGeZi Native Trackers (各生态基础版，防误杀)
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.xiaomi.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.oppo-realme.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.vivo.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.huawei.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.samsung.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.apple.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.winoffice.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.amazon.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.lgwebos.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.roku.txt",
-              "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/native.tiktok.txt",
+          # 1. 纯域名列表源（HaGeZi wildcard/*-onlydomains.txt + Sentinel Blocklists）
+          PLAIN_DOMAIN_URLS = [
+              # HaGeZi Threat Intelligence Feeds & Native Trackers
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.amazon-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.xiaomi-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.oppo-realme-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.vivo-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.huawei-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.samsung-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.apple-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.winoffice-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.lgwebos-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.roku-onlydomains.txt",
+              "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.tiktok-onlydomains.txt",
               # Sentinel Blocklists - Tracking & Telemetry
               "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/tracking.txt",
               "https://raw.githubusercontent.com/lukaszFD/sentinel-blocklists/main/lists/telemetry.txt",
           ]
 
+          # 2. Exodus Privacy 官方开放 JSON API
           EXODUS_API = "https://reports.exodus-privacy.eu.org/api/trackers"
 
-          # 严格域名校验正则
           DOMAIN_RE = re.compile(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,12}$')
 
           # 防误杀基础白名单（按需增减）
@@ -85,38 +86,31 @@ jobs:
           domains = set()
 
           def add_domain(raw_d):
-              d = raw_d.strip().lower().lstrip('.').rstrip('.')
+              d = raw_d.strip().lower().strip('.')
               if DOMAIN_RE.match(d) and d not in WHITELIST:
                   domains.add(d)
 
-          def extract_from_line(line):
-              line = re.split(r'[#!]', line, maxsplit=1)[0].strip()
-              if not line or line.startswith('@@'):
-                  return
-              if any(ch in line for ch in ('/', '*', '?', '$', '~', ',')):
-                  return
-              line = line.removeprefix('||').split('^', maxsplit=1)[0].strip()
-              parts = line.split()
-              if not parts:
-                  return
-              candidate = parts[-1]
-              if candidate in ('localhost', 'localhost.localdomain', 'broadcasthost', 'ip6-localhost', 'ip6-loopback'):
-                  return
-              add_domain(candidate)
-
-          # 1. 拉取各文本列表源
-          for url in TRACKER_URLS:
+          # 拉取纯域名文本源（HaGeZi + Sentinel）
+          for url in PLAIN_DOMAIN_URLS:
               before = len(domains)
               try:
                   req = urllib.request.Request(url, headers=HEADERS)
                   with urllib.request.urlopen(req, timeout=35) as resp:
                       for raw_line in resp.read().decode('utf-8', errors='ignore').splitlines():
-                          extract_from_line(raw_line)
+                          # 去掉注释和首尾空白
+                          line = re.split(r'[#!]', raw_line, maxsplit=1)[0].strip()
+                          if not line:
+                              continue
+                          # 兼容纯域名与偶发 hosts 行（取最后一个字段）
+                          candidate = line.split()[-1]
+                          if candidate in ('localhost', 'localhost.localdomain', 'broadcasthost', 'ip6-localhost', 'ip6-loopback'):
+                              continue
+                          add_domain(candidate)
                   print(f"[OK] {url} -> +{len(domains) - before} unique domains")
               except Exception as e:
                   print(f"[WARN] Failed to fetch {url}: {e}")
 
-          # 2. 拉取并解析 Exodus API 正则表达式
+          # 拉取并解析 Exodus Privacy 官方 JSON API
           before_exodus = len(domains)
           try:
               req = urllib.request.Request(EXODUS_API, headers=HEADERS)
@@ -127,6 +121,7 @@ jobs:
                       net_det = info.get("network_detection", "")
                       if not net_det:
                           continue
+                      # 将正则转义字符还原并拆出独立域名片段
                       cleaned = net_det.replace(r'\.', '.').replace('^', '').replace('$', '')
                       for part in re.split(r'[|()\[\]]', cleaned):
                           part = part.strip('.*+?\\/ ')
@@ -136,7 +131,11 @@ jobs:
           except Exception as e:
               print(f"[WARN] Failed to fetch Exodus API: {e}")
 
-          # 子域名折叠去重
+          if len(domains) < 500:
+              print(f"[ERROR] Too few domains collected ({len(domains)}), aborting.")
+              sys.exit(1)
+
+          # 父子域名折叠去重
           sorted_domains = sorted(domains, key=lambda x: x.split('.')[::-1])
           collapsed = []
           for d in sorted_domains:
@@ -167,7 +166,7 @@ jobs:
 
           # 生成 mihomo YAML (domain behavior)
           with open("trackers/privacy-trackers.yaml", "w", encoding="utf-8") as f:
-              f.write("# Privacy & Native Trackers (HaGeZi + Exodus + Sentinel)\n")
+              f.write("# Privacy & Native Trackers (HaGeZi Onlydomains + Exodus API + Sentinel)\n")
               f.write("payload:\n")
               for d in collapsed:
                   f.write(f"  - '+.{d}'\n")
