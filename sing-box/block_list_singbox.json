@@ -1,7 +1,7 @@
 {
   "version": 3,
   "rules": [
-    { "domain_suffix": ["gjfzpt.cn","fxltsbl.com"]},
+    { "domain_suffix": ["gjfzpt.cn","189cube.com","smarthome.chinaunicom.cn","gmcc.net","fxltsbl.com"]},
     { "domain_suffix": ["fzapp.gjfzpt.cn"]},
     { "domain_suffix": ["fzapph5.gjfzpt.cn"]},
     { "domain_suffix": ["fzapp-test-tyy.gjfzpt.cn"]},
