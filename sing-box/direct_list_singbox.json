@@ -8,7 +8,7 @@
       "domain_suffix": ["devices.microsoft.com","account.live.com","autodiscover.outlook.com","autodiscover-s.outlook.com"]
     },
     {
-      "domain_suffix": ["edge.microsoft.com"]
+      "domain_suffix": ["edge.microsoft.com","acdcatm.outlook.mira.tm.svc.cloud.microsoft","outlook.cloud.microsoft","shed.outlook.acdc.tm.svc.cloud.microsoft"]
     },
     {
       "domain_suffix": ["aka.ms"]
