@@ -2,10 +2,10 @@
   "version": 3,
   "rules": [
     {
-      "domain_suffix": ["dcg.microsoft.com"]
+      "domain_suffix": ["dcg.microsoft.com","aadcdn.msauth.net","aadcdn.msftauth.net","login.microsoftonline.com","login.live.com"]
     },
     {
-      "domain_suffix": ["devices.microsoft.com"]
+      "domain_suffix": ["devices.microsoft.com","account.live.com","autodiscover.outlook.com","autodiscover-s.outlook.com"]
     },
     {
       "domain_suffix": ["edge.microsoft.com"]
@@ -40,7 +40,7 @@
       "domain_suffix": ["immersivetranslate.com"]},
     {
       "domain_suffix": ["imap.yandex.com",
-        "smtp.yandex.com","smtp.yandex.ru","smtp-mail.outlook.com","outlook.office365.com","hotmail.com","imap.yandex.ru"]},
+        "smtp.yandex.com","smtp.yandex.ru","smtp-mail.outlook.com","smtp.office365.com","pop-mail.outlook.com","imap-mail.outlook.com","outlook.office365.com","hotmail.com","imap.yandex.ru"]},
     {
       "package_name": ["com.farlightgames.igame.gp",
         "com.microsoft.office.outlook"]
