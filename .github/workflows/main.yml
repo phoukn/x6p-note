@@ -494,7 +494,7 @@ jobs:
 
       # ==================== 提交（仅成功 + 定时/手动） ====================
       - name: Commit and Push
-        if: success() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           set -Eeuo pipefail
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
