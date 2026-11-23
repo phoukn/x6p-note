@@ -1,62 +1,126 @@
 {
-  "version": 3,
-  "rules": [
-    {
-      "domain_suffix": ["dcg.microsoft.com","aadcdn.msauth.net","aadcdn.msftauth.net","login.microsoftonline.com","login.live.com"]
-    },
-    {
-      "domain_suffix": ["devices.microsoft.com","account.live.com","autodiscover.outlook.com","autodiscover-s.outlook.com"]
-    },
-    {
-      "domain_suffix": ["edge.microsoft.com","acdcatm.outlook.mira.tm.svc.cloud.microsoft","outlook.cloud.microsoft","shed.outlook.acdc.tm.svc.cloud.microsoft"]
-    },
-    {
-      "domain_suffix": ["aka.ms"]
-    },
-    {
-      "domain_keyword": ["phone-link","farlightgames"]
-    },
-    {
-      "domain_keyword": ["mtalk.google","mobile-gtalk.l","dl-a10b-"]
-    },
-    {
-      "domain_suffix": ["ks-cdn.com","farlightgames.com"]},
-    {
-      "domain_suffix": ["ksyuncdn.com"]},
-    {
-      "domain_suffix": ["disp50.lovejp.click"]},
-    {
-      "domain_suffix": ["xfyun.club"]},
-    {
-      "ip_cidr": ["116.196.132.3",
-        "38.55.102.2",
-        "2606:4700:3030::ac43:d73f",
-        "2606:4700:3036::6815:10b5","2603:1046:c01:2460::2","2603:1046:c01:3002::2","2603:1046:c01:2489::2","2603:1046:c01::/48"]},
-    {
-      "ip_cidr": ["47.253.96.253",
-        "34.49.127.37",
-        "47.253.70.115"]},
-    {
-      "domain_suffix": ["immersivetranslate.com"]},
-    {
-      "domain_suffix": ["imap.yandex.com",
-        "smtp.yandex.com","smtp.yandex.ru","smtp-mail.outlook.com","smtp.office365.com","pop-mail.outlook.com","imap-mail.outlook.com","outlook.office365.com","hotmail.com","imap.yandex.ru"]},
-    {
-      "package_name": ["com.farlightgames.igame.gp",
-        "com.microsoft.office.outlook"]
-    },
-    {
-      "domain_suffix": [
-        ".gov.cn",
-        ".edu.cn"
-      ]
-    },
-    {
-      "domain_regex": [
-        "^(ntp|time|clock)[0-9]*\\..*",
-        "\\.(ntp|time|clock|timeserver)[0-9]*\\.",
-        "^dl-[a-z0-9-]+\\.mypikpak\\.net$"
-      ]
-    }
-  ]
+    "version": 5,
+    "rules": [
+        {
+            "domain_suffix": [
+                "dcg.microsoft.com",
+                "aadcdn.msauth.net",
+                "aadcdn.msftauth.net",
+                "login.microsoftonline.com",
+                "login.live.com"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "devices.microsoft.com",
+                "account.live.com",
+                "autodiscover.outlook.com",
+                "autodiscover-s.outlook.com"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "edge.microsoft.com",
+                "acdcatm.outlook.mira.tm.svc.cloud.microsoft",
+                "outlook.cloud.microsoft",
+                "shed.outlook.acdc.tm.svc.cloud.microsoft"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "aka.ms"
+            ]
+        },
+        {
+            "domain_keyword": [
+                "phone-link",
+                "farlightgames"
+            ]
+        },
+        {
+            "domain_keyword": [
+                "mtalk.google",
+                "mobile-gtalk.l",
+                "dl-a10b-"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "ks-cdn.com",
+                "farlightgames.com"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "ksyuncdn.com"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "disp50.lovejp.click"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "xfyun.club"
+            ]
+        },
+        {
+            "ip_cidr": [
+                "116.196.132.3",
+                "38.55.102.2",
+                "2606:4700:3030::ac43:d73f",
+                "2606:4700:3036::6815:10b5",
+                "2603:1046:c01:2460::2",
+                "2603:1046:c01:3002::2",
+                "2603:1046:c01:2489::2",
+                "2603:1046:c01::/48"
+            ]
+        },
+        {
+            "ip_cidr": [
+                "47.253.96.253",
+                "34.49.127.37",
+                "47.253.70.115"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "immersivetranslate.com"
+            ]
+        },
+        {
+            "domain_suffix": [
+                "imap.yandex.com",
+                "smtp.yandex.com",
+                "smtp.yandex.ru",
+                "smtp-mail.outlook.com",
+                "smtp.office365.com",
+                "pop-mail.outlook.com",
+                "imap-mail.outlook.com",
+                "outlook.office365.com",
+                "hotmail.com",
+                "imap.yandex.ru"
+            ]
+        },
+        {
+            "package_name": [
+                "com.farlightgames.igame.gp",
+                "com.microsoft.office.outlook"
+            ]
+        },
+        {
+            "domain_suffix": [
+                ".gov.cn",
+                ".edu.cn"
+            ]
+        },
+        {
+            "domain_regex": [
+                "^(ntp|time|clock)[0-9]*\\..*",
+                "\\.(ntp|time|clock|timeserver)[0-9]*\\.",
+                "^dl-[a-z0-9-]+\\.mypikpak\\.net$"
+            ]
+        }
+    ]
 }
